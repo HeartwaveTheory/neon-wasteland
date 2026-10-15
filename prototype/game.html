@@ -129,6 +129,8 @@ const ASSET = {
   plasma_base: '__PLASMA_BASE__', plasma_head: '__PLASMA_HEAD__',
   railgun_base: '__RAILGUN_BASE__', railgun_head: '__RAILGUN_HEAD__',
   garrison_base: '__GARRISON_BASE__', garrison_head: '__GARRISON_HEAD__',
+  unit_raider: '__UNIT_RAIDER__', unit_scout: '__UNIT_SCOUT__', unit_enforcer: '__UNIT_ENFORCER__', unit_mech: '__UNIT_MECH__',
+  unit_drone: '__UNIT_DRONE__', unit_trooper: '__UNIT_TROOPER__', unit_merc: '__UNIT_MERC__',
 };
 const MAP_W = 1672, MAP_H = 941;
 const SQ = 0.7;               // ground ellipse ratio: ranges are ellipses rx = r, ry = r * SQ
@@ -187,6 +189,9 @@ function nearestOnPaths(x, y) {
   return best;
 }
 const edist = (ax, ay, bx, by) => Math.hypot(ax - bx, (ay - by) / SQ);
+const HOVER = 24;   // drones fly this high above their shadow
+// Where shots hit a unit: the middle of its body (drones: in the air).
+const aimY = (e) => e.y - (e.def.air ? HOVER : e.def.h * 0.5);
 
 // ---------------------------------------------------------------- towers
 const TOWERS = {
@@ -215,24 +220,24 @@ const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison'];
 
 // ---------------------------------------------------------------- enemies
 const ENEMIES = {
-  scav:    { name: 'Scav',    hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, size: 1.0 },
-  rider:   { name: 'Rider',   hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, size: 1.0 },
-  brute:   { name: 'Brute',   hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, size: 1.0 },
-  drone:   { name: 'Drone',   hp: 70,   speed: 52, armor: 0,   bounty: 9,   lives: 1,  air: true, size: 1.0 },
-  warlord: { name: 'Warlord', hp: 3400, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, size: 1.0, boss: true },
+  raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 140, shadow: 7 },
+  scout:    { name: 'Scout',    hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, h: 23, sh: 112, shadow: 11 },
+  enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 136, shadow: 11 },
+  drone:    { name: 'Drone',    hp: 70,   speed: 52, armor: 0,   bounty: 9,   lives: 1,  air: true, h: 17, sh: 70, shadow: 8 },
+  mech:     { name: 'Mech',     hp: 3400, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 140, shadow: 20, boss: true },
 };
 // Waves: groups of { t: type, n: count, g: gate, every: seconds between, delay: start delay }.
 const WAVES = [
-  [{ t: 'scav', n: 6, g: 'L', every: 1.4 }],
-  [{ t: 'scav', n: 7, g: 'R', every: 1.3 }, { t: 'rider', n: 3, g: 'L', every: 1.6, delay: 4 }],
-  [{ t: 'scav', n: 6, g: 'L', every: 1.2 }, { t: 'scav', n: 6, g: 'R', every: 1.2 }, { t: 'brute', n: 2, g: 'L', every: 5, delay: 6 }],
-  [{ t: 'drone', n: 6, g: 'R', every: 1.4 }, { t: 'scav', n: 8, g: 'L', every: 1.1, delay: 2 }],
-  [{ t: 'rider', n: 8, g: 'L', every: 0.8 }, { t: 'rider', n: 8, g: 'R', every: 0.8, delay: 3 }, { t: 'brute', n: 1, g: 'R', delay: 8 }],
-  [{ t: 'brute', n: 4, g: 'R', every: 3.5 }, { t: 'scav', n: 12, g: 'L', every: 0.9 }, { t: 'drone', n: 4, g: 'L', every: 1.5, delay: 8 }],
-  [{ t: 'drone', n: 10, g: 'L', every: 0.9 }, { t: 'brute', n: 3, g: 'L', every: 3, delay: 4 }, { t: 'rider', n: 10, g: 'R', every: 0.7, delay: 2 }],
-  [{ t: 'scav', n: 16, g: 'R', every: 0.6 }, { t: 'brute', n: 5, g: 'L', every: 2.5 }, { t: 'drone', n: 8, g: 'R', every: 1, delay: 6 }],
-  [{ t: 'brute', n: 7, g: 'L', every: 2.2 }, { t: 'brute', n: 5, g: 'R', every: 2.6, delay: 3 }, { t: 'drone', n: 12, g: 'L', every: 0.8, delay: 5 }, { t: 'rider', n: 12, g: 'R', every: 0.5, delay: 10 }],
-  [{ t: 'warlord', n: 1, g: 'L', delay: 4 }, { t: 'scav', n: 14, g: 'R', every: 0.8 }, { t: 'brute', n: 4, g: 'L', every: 3, delay: 10 }, { t: 'drone', n: 10, g: 'R', every: 1, delay: 14 }],
+  [{ t: 'raider', n: 6, g: 'L', every: 1.4 }],
+  [{ t: 'raider', n: 7, g: 'R', every: 1.3 }, { t: 'scout', n: 3, g: 'L', every: 1.6, delay: 4 }],
+  [{ t: 'raider', n: 6, g: 'L', every: 1.2 }, { t: 'raider', n: 6, g: 'R', every: 1.2 }, { t: 'enforcer', n: 2, g: 'L', every: 5, delay: 6 }],
+  [{ t: 'drone', n: 6, g: 'R', every: 1.4 }, { t: 'raider', n: 8, g: 'L', every: 1.1, delay: 2 }],
+  [{ t: 'scout', n: 8, g: 'L', every: 0.8 }, { t: 'scout', n: 8, g: 'R', every: 0.8, delay: 3 }, { t: 'enforcer', n: 1, g: 'R', delay: 8 }],
+  [{ t: 'enforcer', n: 4, g: 'R', every: 3.5 }, { t: 'raider', n: 12, g: 'L', every: 0.9 }, { t: 'drone', n: 4, g: 'L', every: 1.5, delay: 8 }],
+  [{ t: 'drone', n: 10, g: 'L', every: 0.9 }, { t: 'enforcer', n: 3, g: 'L', every: 3, delay: 4 }, { t: 'scout', n: 10, g: 'R', every: 0.7, delay: 2 }],
+  [{ t: 'raider', n: 16, g: 'R', every: 0.6 }, { t: 'enforcer', n: 5, g: 'L', every: 2.5 }, { t: 'drone', n: 8, g: 'R', every: 1, delay: 6 }],
+  [{ t: 'enforcer', n: 7, g: 'L', every: 2.2 }, { t: 'enforcer', n: 5, g: 'R', every: 2.6, delay: 3 }, { t: 'drone', n: 12, g: 'L', every: 0.8, delay: 5 }, { t: 'scout', n: 12, g: 'R', every: 0.5, delay: 10 }],
+  [{ t: 'mech', n: 1, g: 'L', delay: 4 }, { t: 'raider', n: 14, g: 'R', every: 0.8 }, { t: 'enforcer', n: 4, g: 'L', every: 3, delay: 10 }, { t: 'drone', n: 10, g: 'R', every: 1, delay: 14 }],
 ];
 const START_GOLD = 300, START_LIVES = 20, WAVE_GAP = 20;
 const HP_PER_WAVE = 0.05, BOUNTY = 0.85;   // enemy health +5% per wave; bounties scaled
@@ -446,9 +451,9 @@ function kill(e) {
   e.dead = true;
   const bounty = Math.max(1, Math.round(e.def.bounty * BOUNTY));
   S.gold += bounty; S.stats.kills++;
-  floatText(e.x, e.y - 34, '+' + bounty, '#ffd23a');
+  floatText(e.x, e.y - (e.def.air ? HOVER : e.def.h) - 10, '+' + bounty, '#ffd23a');
   sfx('die'); if (e.def.boss) { sfx('boom'); S.shake = 0.6; }
-  burst(e.x, e.y - (e.def.air ? 34 : 12), e.def.air ? '#ff5a3a' : '#c8b08a', e.def.boss ? 60 : 12, e.def.boss ? 220 : 90, e.def.boss ? 7 : 3.5, 0.6, 40);
+  burst(e.x, aimY(e), e.def.air ? '#ff5a3a' : '#9aa3b5', e.def.boss ? 60 : 12, e.def.boss ? 220 : 80, e.def.boss ? 6 : 3, 0.6, 40);
   burst(e.x, e.y - 12, '#ffd23a', 4, 60, 2.5, 0.5, 60);
   for (const tr of S.troops) if (tr.target === e) tr.target = null;
 }
@@ -486,7 +491,7 @@ function fireSniper(tw, tg) {
   let dmg = def.dmg[tw.lvl], crit = false;
   if (tw.lvl === 2 && Math.random() < 0.15 && !tg.def.boss) { dmg *= 3; crit = true; }
   const [mx, my] = muzzle(tw);
-  const ty = tg.y - (tg.def.air ? 36 : 14);
+  const ty = aimY(tg);
   S.fx.push({ kind: 'tracer', x1: mx, y1: my, x2: tg.x, y2: ty, life: 0.12, max: 0.12, color: '#ff3a4a' });
   S.fx.push({ kind: 'flash', x: mx, y: my, r: 12 * TS + 4, life: 0.08, max: 0.08, color: '#ffe0b0' });
   burst(tg.x, ty, '#ffd8c8', 5, 70, 2.2, 0.25);
@@ -509,7 +514,7 @@ function firePlasma(tw, tg) {
   }
   let px = mx, py = my;
   for (const e of hit) {
-    const ey = e.y - (e.def.air ? 36 : 16);
+    const ey = aimY(e);
     S.fx.push({ kind: 'bolt', x1: px, y1: py, x2: e.x, y2: ey, life: 0.16, max: 0.16, seed: Math.random() * 1000 });
     burst(e.x, ey, '#7ff6ff', 4, 60, 2.4, 0.25);
     damage(e, def.dmg[tw.lvl], 'energy');
@@ -587,8 +592,9 @@ function updateTroop(tr, dt) {
     if (tg) { tr.target = tg; tg.blockers = tg.blockers || []; tg.blockers.push(tr); }
   }
   let gx = post.x, gy = post.y;
-  if (tr.target) { const side = tr.x < tr.target.x ? -1 : 1; gx = tr.target.x + side * 18 * (tr.target.def.boss ? 2.2 : 1); gy = tr.target.y + 2; }
+  if (tr.target) { const side = tr.x < tr.target.x ? -1 : 1; gx = tr.target.x + side * (tr.target.def.boss ? 30 : 13); gy = tr.target.y + 2; }
   const dx = gx - tr.x, dy = gy - tr.y, d = Math.hypot(dx, dy);
+  tr.moving = d > 2;
   if (d > 2) { const v = Math.min(d, 75 * dt); tr.x += (dx / d) * v; tr.y += (dy / d) * v; tr.face = dx < 0 ? -1 : 1; tr.walk = (tr.walk || 0) + dt * 10; }
   const tg = tr.target;
   if (tg && d < 8) {
@@ -621,7 +627,7 @@ function spawnEnemy(type, gate) {
 function updateEnemy(e, dt) {
   e.hit = Math.max(0, e.hit - dt);
   e.blockers = (e.blockers || []).filter((b) => !b.dead && b.target === e);
-  const blocked = !e.def.air && e.blockers.some((b) => Math.hypot(b.x - e.x, b.y - e.y) < 30 * (e.def.boss ? 2.2 : 1));
+  const blocked = e.blockedNow = !e.def.air && e.blockers.some((b) => Math.hypot(b.x - e.x, b.y - e.y) < (e.def.boss ? 52 : 24));
   if (blocked) {
     e.cd -= dt;
     const b = e.blockers[0];
@@ -748,116 +754,42 @@ function inkFill(fill, lw = 2) { ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function hitTint(e) { return e.hit > 0 ? '#ffffff' : null; }
 
-function drawScav(e) {
-  const b = Math.sin((e.walk || 0) * 1.3 + e.seed) * 1.6, leg = Math.sin((e.walk || 0) * 1.3 + e.seed) * 4;
-  shadow(e.x, e.y, 10, 4);
-  ctx.save(); ctx.translate(e.x, e.y); ctx.scale(e.face, 1);
-  const w = hitTint(e);
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-3, -10); ctx.lineTo(-3 - leg, 0); ctx.moveTo(3, -10); ctx.lineTo(3 + leg, 0); ctx.stroke();
-  ctx.strokeStyle = '#3b3530'; ctx.lineWidth = 2.6; ctx.stroke();
-  rr(-8, -26 + b, 16, 17, 4); inkFill(w || '#8a3b22');
-  ctx.fillStyle = '#5c2614'; ctx.fillRect(-8, -14 + b, 16, 3);
-  ctx.beginPath(); ctx.arc(0, -31 + b, 7, 0, Math.PI * 2); inkFill(w || '#eadfc8');
-  ctx.fillStyle = '#ff3a3a'; ctx.fillRect(1, -33 + b, 6, 3);
-  ctx.beginPath(); ctx.moveTo(-6, -36 + b); ctx.lineTo(-3, -44 + b); ctx.lineTo(0, -37 + b); ctx.lineTo(3, -43 + b); ctx.lineTo(5, -36 + b); ctx.closePath(); inkFill('#ff8a1e', 1.6);
-  const sw = (e.swing || 0) * 1.2;
-  ctx.save(); ctx.translate(7, -20 + b); ctx.rotate(-0.6 + sw); ctx.fillStyle = '#c9d2d4'; ctx.fillRect(0, -2, 13, 3.4); ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.strokeRect(0, -2, 13, 3.4); ctx.restore();
+// Units are sprite strips: 8 frames of 320 px (6 walk, 2 attack), drawn facing
+// right with their feet at (80, 150) of a 160-unit frame; flipped to face left.
+const FRAME = 320;
+function drawSprite(sheet, frame, x, y, face, scale, flash) {
+  const im = IMG['unit_' + sheet]; if (!im) return;
+  ctx.save(); ctx.translate(x, y); ctx.scale(face * scale, scale);
+  ctx.drawImage(im, frame * FRAME, 0, FRAME, FRAME, -80, -150, 160, 160);
+  if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55; ctx.drawImage(im, frame * FRAME, 0, FRAME, FRAME, -80, -150, 160, 160); }
   ctx.restore();
 }
-function drawRider(e) {
-  const t = S.t * 18 + e.seed;
-  shadow(e.x, e.y, 18, 5);
-  if (Math.random() < 0.3) S.parts.push({ x: e.x - e.face * 16, y: e.y - 3, vx: -e.face * rand(10, 30), vy: -rand(5, 15), life: 0.5, max: 0.5, color: 'rgba(217,180,130,.7)', size: rand(3, 6), g: -5, soft: true });
-  ctx.save(); ctx.translate(e.x, e.y); ctx.scale(e.face, 1);
-  const w = hitTint(e);
-  for (const wx of [-12, 12]) { ctx.beginPath(); ctx.arc(wx, -6, 6.5, 0, Math.PI * 2); inkFill('#26221f'); ctx.strokeStyle = '#6b6577'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(wx + Math.cos(t) * 4, -6 + Math.sin(t) * 4); ctx.lineTo(wx - Math.cos(t) * 4, -6 - Math.sin(t) * 4); ctx.stroke(); }
-  ctx.beginPath(); ctx.moveTo(-16, -10); ctx.lineTo(10, -12); ctx.lineTo(16, -8); ctx.lineTo(8, -5); ctx.lineTo(-12, -6); ctx.closePath(); inkFill(w || '#c8402d');
-  ctx.fillStyle = '#ffd23a'; ctx.fillRect(-6, -11, 9, 2);
-  rr(-6, -26, 11, 14, 3); inkFill(w || '#3b3530');
-  ctx.beginPath(); ctx.arc(1, -30, 6, 0, Math.PI * 2); inkFill(w || '#5c2614');
-  ctx.fillStyle = '#ffd23a'; ctx.fillRect(2, -32, 5, 3);
-  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(4, -20); ctx.lineTo(12, -14); ctx.stroke();
-  ctx.restore();
-}
-function drawBrute(e) {
-  const b = Math.sin((e.walk || 0) * 0.9 + e.seed) * 1.4, leg = Math.sin((e.walk || 0) * 0.9 + e.seed) * 4;
-  shadow(e.x, e.y, 15, 5);
-  ctx.save(); ctx.translate(e.x, e.y); ctx.scale(e.face, 1);
-  const w = hitTint(e);
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = INK; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-6, -12); ctx.lineTo(-6 - leg, 0); ctx.moveTo(6, -12); ctx.lineTo(6 + leg, 0); ctx.stroke();
-  ctx.strokeStyle = '#4a505e'; ctx.lineWidth = 4.5; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-14, -36 + b); ctx.lineTo(14, -36 + b); ctx.lineTo(12, -11 + b); ctx.lineTo(-12, -11 + b); ctx.closePath(); inkFill(w || '#576072', 2.4);
-  ctx.fillStyle = '#7c8698'; ctx.fillRect(-12, -34 + b, 10, 22);
-  ctx.fillStyle = '#ffd23a'; ctx.fillRect(-12, -18 + b, 24, 3); ctx.fillStyle = INK; for (let k = -10; k < 12; k += 6) ctx.fillRect(k, -18 + b, 3, 3);
-  for (const sx of [-16, 16]) { ctx.beginPath(); ctx.moveTo(sx, -38 + b); ctx.lineTo(sx + Math.sign(sx) * 6, -46 + b); ctx.lineTo(sx * 0.6, -36 + b); ctx.closePath(); inkFill('#aab5c6', 1.6); }
-  rr(-8, -50 + b, 16, 14, 4); inkFill(w || '#3a404c', 2.2);
-  ctx.fillStyle = '#ff3a3a'; ctx.fillRect(-5, -45 + b, 12, 3);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,58,58,.5)'; ctx.fillRect(-6, -46 + b, 14, 5); ctx.restore();
-  const sw = (e.swing || 0) * 1.4;
-  ctx.save(); ctx.translate(12, -28 + b); ctx.rotate(-0.4 + sw); rr(0, -4, 18, 8, 2); inkFill('#894a20', 1.8); ctx.restore();
-  ctx.restore();
-}
-function drawDrone(e, shadowOnly) {
-  const h = 36 + Math.sin(S.t * 4 + e.seed) * 4;
-  if (shadowOnly) { shadow(e.x, e.y, 11, 4, 0.25); return; }
-  ctx.save(); ctx.translate(e.x, e.y - h); ctx.scale(e.face, 1);
-  const w = hitTint(e);
-  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-14, -4); ctx.lineTo(14, 4); ctx.moveTo(-14, 4); ctx.lineTo(14, -4); ctx.stroke();
-  ctx.strokeStyle = '#576072'; ctx.lineWidth = 2; ctx.stroke();
-  for (const [rx, ry] of [[-14, -4], [14, 4], [-14, 4], [14, -4]]) {
-    ctx.fillStyle = 'rgba(255,90,58,.35)'; ctx.beginPath(); ctx.ellipse(rx, ry - 3, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,220,200,.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(rx, ry - 3, 8, 2.4, S.t * 30, 0, Math.PI * 2); ctx.stroke();
+function walkFrame(u, rate = 1) { return Math.floor((u.walk || 0) * 0.9 * rate) % 6; }
+function drawEnemy(e) {
+  const d = e.def, sc = d.h / d.sh;
+  if (d.air) {
+    const hy = HOVER + Math.sin(S.t * 4 + e.seed) * 3;
+    drawSprite('drone', Math.floor(S.t * 18 + e.seed) % 6, e.x, e.y - hy + 66 * sc, e.face, sc, e.hit > 0);   // body centre (80, 84) of the frame sits at the hover height
+    return;
   }
-  ctx.beginPath(); ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2); inkFill(w || '#3a404c', 2.2);
-  ctx.fillStyle = '#ff3a3a'; ctx.beginPath(); ctx.arc(4, 1, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,58,58,.45)'; ctx.beginPath(); ctx.arc(4, 1, 7, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  ctx.restore();
-}
-function drawWarlord(e) {
-  const b = Math.sin(S.t * 10) * 0.8;
-  shadow(e.x, e.y + 2, 46, 12, 0.4);
-  if (Math.random() < 0.4) S.parts.push({ x: e.x - e.face * 30, y: e.y - 60, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(40,36,40,.55)', size: rand(5, 9), g: -8, soft: true });
-  ctx.save(); ctx.translate(e.x, e.y); ctx.scale(e.face, 1);
-  const w = hitTint(e);
-  for (const wx of [-30, -8, 26]) { ctx.beginPath(); ctx.arc(wx, -10, 11, 0, Math.PI * 2); inkFill('#26221f', 2.4); ctx.fillStyle = '#4a4440'; ctx.beginPath(); ctx.arc(wx, -10, 4, 0, Math.PI * 2); ctx.fill(); }
-  ctx.beginPath(); ctx.moveTo(-44, -20 + b); ctx.lineTo(30, -20 + b); ctx.lineTo(44, -14 + b); ctx.lineTo(44, -34 + b); ctx.lineTo(-44, -36 + b); ctx.closePath(); inkFill(w || '#5d3014', 2.6);
-  ctx.fillStyle = '#894a20'; ctx.fillRect(-42, -34 + b, 60, 5);
-  ctx.beginPath(); ctx.moveTo(-40, -36 + b); ctx.lineTo(-40, -58 + b); ctx.lineTo(-4, -58 + b); ctx.lineTo(-4, -36 + b); ctx.closePath(); inkFill(w || '#3a404c', 2.4);
-  ctx.beginPath(); ctx.moveTo(4, -36 + b); ctx.lineTo(10, -60 + b); ctx.lineTo(32, -60 + b); ctx.lineTo(38, -36 + b); ctx.closePath(); inkFill(w || '#894a20', 2.4);
-  ctx.fillStyle = '#2f3a44'; ctx.fillRect(14, -56 + b, 16, 10); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.strokeRect(14, -56 + b, 16, 10);
-  ctx.fillStyle = '#eadfc8'; ctx.beginPath(); ctx.arc(46, -26 + b, 7, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
-  ctx.fillStyle = INK; ctx.fillRect(43, -28 + b, 2.6, 2.6); ctx.fillRect(47, -28 + b, 2.6, 2.6);
-  for (let k = -36; k < 0; k += 10) { ctx.beginPath(); ctx.moveTo(k, -58 + b); ctx.lineTo(k + 4, -68 + b); ctx.lineTo(k + 8, -58 + b); ctx.closePath(); inkFill('#aab5c6', 1.6); }
-  ctx.fillStyle = '#ffd23a'; ctx.fillRect(-40, -30 + b, 34, 4); ctx.fillStyle = INK; for (let k = -38; k < -6; k += 8) ctx.fillRect(k, -30 + b, 4, 4);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  const on = Math.sin(S.t * 8) > 0;
-  ctx.fillStyle = on ? 'rgba(255,58,58,.8)' : 'rgba(58,123,255,.8)'; ctx.beginPath(); ctx.arc(-22, -62 + b, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-  ctx.font = '400 9px Bungee, sans-serif'; ctx.fillStyle = '#ffd23a'; ctx.textAlign = 'center'; ctx.save(); ctx.scale(e.face, 1); ctx.fillText('WARLORD', -22 * e.face, -42 + b); ctx.restore();
-  ctx.restore();
+  shadow(e.x, e.y, d.shadow, d.shadow * 0.4);
+  const blocked = e.blockedNow;
+  const frame = blocked ? (e.swing > 0.5 ? 7 : 6) : walkFrame(e, e.type === 'scout' ? 1.1 : 1);
+  drawSprite(e.type, frame, e.x, e.y, e.face, sc, e.hit > 0);
+  if (d.boss && Math.random() < 0.35) S.parts.push({ x: e.x - e.face * 14, y: e.y - d.h * 0.95, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(60,56,60,.55)', size: rand(4, 7), g: -8, soft: true });
 }
 function drawTroop(tr) {
   if (tr.dead) return;
   const merc = tr.kind === 'merc';
-  const b = Math.sin((tr.walk || 0)) * 1.2, leg = Math.sin((tr.walk || 0)) * 3.5;
   let yoff = 0;
   if (merc && tr.drop > 0) { yoff = -tr.drop * 300; tr.drop = Math.max(0, tr.drop - 1 / 60); }
-  shadow(tr.x, tr.y, 9, 3.5);
-  ctx.save(); ctx.translate(tr.x, tr.y + yoff); ctx.scale(tr.face, 1);
+  shadow(tr.x, tr.y, 6, 2.5);
+  ctx.save();
   if (merc && tr.life < 3) ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 10));
-  const body = merc ? '#b46c36' : '#2a4f8f', acc = merc ? '#ffd23a' : '#3ff0ff';
-  const w = tr.hit > 0 ? '#ffffff' : null; tr.hit = Math.max(0, (tr.hit || 0) - 1 / 60);
-  ctx.lineCap = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-3, -9); ctx.lineTo(-3 - leg, 0); ctx.moveTo(3, -9); ctx.lineTo(3 + leg, 0); ctx.stroke();
-  ctx.strokeStyle = '#3a404c'; ctx.lineWidth = 2.6; ctx.stroke();
-  rr(-7, -24 + b, 14, 16, 3); inkFill(w || body);
-  ctx.fillStyle = '#7c8698'; ctx.fillRect(-7, -20 + b, 14, 3);
-  ctx.beginPath(); ctx.arc(0, -29 + b, 6.5, Math.PI, 0); ctx.lineTo(6.5, -26 + b); ctx.lineTo(-6.5, -26 + b); ctx.closePath(); inkFill(w || '#576072');
-  ctx.fillStyle = acc; ctx.fillRect(0, -30 + b, 6.5, 2.6);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = acc + '88'; ctx.fillRect(-1, -31 + b, 9, 4.5); ctx.restore();
-  const sw = (tr.swing || 0) * 1.3;
-  ctx.save(); ctx.translate(6, -18 + b); ctx.rotate(-0.3 + sw); rr(0, -2.5, 14, 5, 1.5); inkFill('#3a404c', 1.6); ctx.restore();
+  const fighting = tr.target && Math.hypot(tr.x - tr.target.x, tr.y - tr.target.y) < 40;
+  const frame = tr.swing > 0 ? (tr.swing > 0.5 ? 6 : 7) : fighting ? 6 : tr.moving ? walkFrame(tr, 1.4) : 0;
+  drawSprite(merc ? 'merc' : 'trooper', frame, tr.x, tr.y + yoff, tr.face, 26 / 116, tr.hit > 0);
+  tr.hit = Math.max(0, (tr.hit || 0) - 1 / 60);
   ctx.restore();
 }
 function hpBar(x, y, hp, max, w = 24, color = '#7dff5a') {
@@ -1040,19 +972,19 @@ function render() {
   const list = [];
   for (const tw of S.towers) if (tw) list.push({ y: PADS[tw.i].y, f: () => drawTower(tw) });
   for (const e of S.enemies) {
-    if (e.def.air) { list.push({ y: e.y, f: () => drawDrone(e, true) }); continue; }
-    list.push({ y: e.y, f: () => (e.type === 'scav' ? drawScav(e) : e.type === 'rider' ? drawRider(e) : e.type === 'brute' ? drawBrute(e) : drawWarlord(e)) });
+    if (e.def.air) { list.push({ y: e.y, f: () => shadow(e.x, e.y, e.def.shadow, e.def.shadow * 0.4, 0.25) }); continue; }
+    list.push({ y: e.y, f: () => drawEnemy(e) });
   }
   for (const tr of S.troops) if (!tr.dead) list.push({ y: tr.y, f: () => drawTroop(tr) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
-  for (const e of S.enemies) if (e.def.air) drawDrone(e, false);
+  for (const e of S.enemies) if (e.def.air) drawEnemy(e);
   // health bars
   for (const e of S.enemies) {
-    const top = e.def.air ? 56 : e.type === 'warlord' ? 82 : e.type === 'brute' ? 60 : 50;
-    hpBar(e.x, e.y - top, e.hp, e.maxHp, e.def.boss ? 70 : 26, e.def.boss ? '#ff3a4a' : '#7dff5a');
+    const top = e.def.air ? HOVER + 18 : e.def.h + 8;
+    hpBar(e.x, e.y - top, e.hp, e.maxHp, e.def.boss ? 56 : 20, e.def.boss ? '#ff3a4a' : '#7dff5a');
   }
-  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - 44, tr.hp, tr.maxHp, 20, '#3ff0ff');
+  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - 33, tr.hp, tr.maxHp, 16, '#3ff0ff');
   drawFx();
   // HQ damage flash
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

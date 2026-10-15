@@ -9,7 +9,7 @@ await page.evaluate(() => {
   const N = window.__NW; N.start(); const S = N.S; S.lives = 999;
   S.spawning = [];
   N.startWave(); S.spawning = [];
-  const kinds = ['scav', 'rider', 'brute', 'drone', 'scav', 'scav', 'brute', 'rider'];
+  const kinds = ['raider', 'scout', 'enforcer', 'drone', 'raider', 'raider', 'enforcer', 'scout'];
   for (let k = 0; k < 40; k++) {
     for (const g of ['L', 'R']) {
       const e = { id: 5000 + k * 2 + (g === 'L' ? 0 : 1), type: kinds[k % kinds.length], def: N.ENEMIES[kinds[k % kinds.length]], path: g, d: k * 28, off: Math.random() * 2 - 1, hp: 50, maxHp: 60, x: 0, y: 0, face: 1, cd: 0, blockers: [], seed: k, hit: 0, dead: false };

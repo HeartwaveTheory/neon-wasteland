@@ -15,6 +15,8 @@ rep = {
 for t in ['sniper', 'plasma', 'railgun', 'garrison']:
     for l in ['base', 'head']:
         rep[f'__{t.upper()}_{l.upper()}__'] = uri(os.path.join(A, f'{t}-{l}.webp'), 'image/webp')
+for u in ['raider', 'scout', 'enforcer', 'mech', 'drone', 'trooper', 'merc']:
+    rep[f'__UNIT_{u.upper()}__'] = uri(os.path.join(A, 'units', f'{u}.webp'), 'image/webp')
 for k, v in rep.items():
     if k not in src: sys.exit(f'missing placeholder {k}')
     src = src.replace(k, v)
