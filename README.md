@@ -1,0 +1,43 @@
+# Neon Wasteland: concept art for a new tower-defense game
+
+**Not part of Shatterline.** This is concept work for a new game (a Kingdom Rush-style tower defense with a
+cyberpunk × Borderlands look), saved on this branch so it isn't lost. It isn't meant to be merged into Shatterline's `main`.
+A new game's repo is the studio lead's call (TEAM.md). Move this folder there when one exists.
+
+## What's here
+
+- `art/map.png` (1672 × 941) and `art/map-2x.webp`: the **Neon Wasteland** map. It is the user's reference map
+  (`maplab/ref/map.webp`) repainted as a sun-baked Borderlands-style canyon with cyberpunk tech. The layout is the same:
+  the two enemy gates, the four build pads, the junction and the AEGIS HQ at the bottom.
+- `art/towers/*.png` (512 × 512) and `art/towers/layers/*-base.png` / `*-head.png`: the first four towers, drawn from the
+  user's tower reference (`towers2/ref/towers.jpg`). Each has a static base layer and a weapon / top layer the game can
+  turn or animate:
+  - **SNIPER**: long range, single target
+  - **PLASMA**: chain lightning
+  - **RAILGUN**: a piercing heavy shot
+  - **GARRISON**: troops that block the road
+- `art/towers-lineup.png` and `art/towers-on-map.webp`: the set side by side, and the towers on the map's pads at game scale.
+
+## How it's made
+
+Everything is drawn in code (SVG) with one shared kit, so the map and the towers share ink weight, lighting (from
+the upper-left) and texture:
+
+| File | What it is |
+|---|---|
+| `towerlab/kit.mjs` | core kit |
+| `maplab/mapkit.mjs` | map props |
+| `towers2/tkit.mjs` | tower parts |
+| `maplab/MAP.md`, `towers2/BRIEF.md` | the art briefs |
+
+To rebuild (Node 22 with Playwright's Chromium, Python 3 with OpenCV):
+
+```
+cd concepts/neon-wasteland
+python3 -m venv venv && venv/bin/pip install opencv-python-headless numpy
+cd maplab && node compose.mjs              # map -> maplab/out/map.png, map-2x.png, crops
+cd ../towers2 && node render.mjs --sheet   # towers -> towers2/out/png, layers, lineup.png, on-map.png
+```
+
+The scripts import Playwright from `/opt/node22/lib/node_modules/playwright` (the cloud workspace's copy); change that
+path in `maplab/compose.mjs` and `towers2/render.mjs` elsewhere.
