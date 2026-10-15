@@ -1,8 +1,7 @@
-# Neon Wasteland: concept art for a new tower-defense game
+# Neon Wasteland
 
-**Not part of Shatterline.** This is concept work for a new game (a Kingdom Rush-style tower defense with a
-cyberpunk × Borderlands look), saved on this branch so it isn't lost. It isn't meant to be merged into Shatterline's `main`.
-A new game's repo is the studio lead's call (TEAM.md). Move this folder there when one exists.
+A Kingdom Rush-style tower defense with a cyberpunk × Borderlands look: the map, the first four towers, and a playable
+prototype (`prototype/neon-wasteland.html`, one file, open it in a browser).
 
 ## What's here
 
@@ -33,7 +32,6 @@ the upper-left) and texture:
 To rebuild (Node 22 with Playwright's Chromium, Python 3 with OpenCV):
 
 ```
-cd concepts/neon-wasteland
 python3 -m venv venv && venv/bin/pip install opencv-python-headless numpy
 cd maplab && node compose.mjs              # map -> maplab/out/map.png, map-2x.png, crops
 cd ../towers2 && node render.mjs --sheet   # towers -> towers2/out/png, layers, lineup.png, on-map.png
