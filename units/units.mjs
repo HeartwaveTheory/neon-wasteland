@@ -76,13 +76,13 @@ function raider(K, fr, pal = {}) {
     const stride = atk == null ? 13 : 0;
     const fb = atk == null ? foot(hip[0] - 4, p, 0.5, stride, 9) : [hip[0] - 14, GY];
     const kb = knee([hip[0] - 4, hip[1]], fb, 24, 25, 1);
-    s += limb([hip[0] - 4, hip[1]], kb, 11, pants[2]) + limb(kb, fb, 10, pants[2]);
+    s += seg([hip[0] - 4, hip[1]], kb, 5.5, 5, [pants[1], pants[2], '#1d1e24']) + seg(kb, fb, 5, 4.5, [pants[1], pants[2], '#1d1e24']);
     s += sneaker(fb[0], fb[1], pal.sole2 || T.magenta.c, T.cyan.c, '#22202a');
     // far arm + raised magenta katana
     const sh1 = [70, 74 + bob];
     const hand1 = atk === 1 ? [96, 72 + bob] : atk === 0 ? [62, 50 + bob] : [58, 66 + bob];
     const el1 = knee(sh1, hand1, 15, 15, -1);
-    s += limb(sh1, el1, 9, jacket[2]) + limb(el1, hand1, 8, jacket[2]);
+    s += seg(sh1, el1, 4.8, 4.4, [jacket[1], jacket[2], jacket[3]]) + seg(el1, hand1, 4.4, 4, [jacket[1], jacket[2], jacket[3]]);
     const tip1 = atk === 1 ? [146, 100 + bob] : atk === 0 ? [80, 6 + bob] : [36, 14 + bob];
     s += blade(K, hand1, tip1, pal.blade1 || T.magenta, 4.5);
     s += circ(hand1[0], hand1[1], 5, '#d9a07a', 2.6);
@@ -100,7 +100,7 @@ function raider(K, fr, pal = {}) {
     // near leg
     const ff = atk == null ? foot(hip[0] + 6, p, 0, stride, 9) : [hip[0] + 18, GY];
     const kf = knee([hip[0] + 6, hip[1]], ff, 24, 25, 1);
-    s += limb([hip[0] + 6, hip[1]], kf, 12, pants[1], pants[0]) + limb(kf, ff, 11, pants[1], pants[0]);
+    s += seg([hip[0] + 6, hip[1]], kf, 6, 5.5, [pants[0], pants[1], pants[2]]) + seg(kf, ff, 5.5, 5, [pants[0], pants[1], pants[2]]);
     s += ell(kf[0] + 2, kf[1], 6, 5, helm[2], 2.4);                       // knee pad
     s += sneaker(ff[0], ff[1], pal.sole1 || T.cyan.c, T.magenta.c);
     // helmet
@@ -120,7 +120,7 @@ function raider(K, fr, pal = {}) {
     const sh2 = [94, 76 + bob];
     const hand2 = atk === 0 ? [108, 58 + bob] : atk === 1 ? [114, 98 + bob] : [110, 98 + bob];
     const el2 = knee(sh2, hand2, 15, 15, 1);
-    s += limb(sh2, el2, 10, jacket[1], jacket[0]) + limb(el2, hand2, 9, jacket[1], jacket[0]);
+    s += seg(sh2, el2, 5.2, 4.8, [jacket[0], jacket[1], jacket[2]]) + seg(el2, hand2, 4.8, 4.4, [jacket[0], jacket[1], jacket[2]]);
     s += `<path d="M${f(el2[0] - 3)} ${f(el2[1] - 4)} l6 3" stroke="${pal.stripe || T.magenta.c}" stroke-width="2.4"/>`;
     const tip2 = atk === 0 ? [126, 18 + bob] : atk === 1 ? [150, 138] : [144, 122 + bob];
     s += blade(K, hand2, tip2, pal.blade2 || T.cyan, 4.5);
@@ -241,80 +241,159 @@ function scout(K, fr) {
   });
 }
 
+// ------------------------------------------------------------------ armour limbs
+// Lit side of a segment: the normal that points toward the light (upper-left).
+function litNormal(ux, uy) {
+  let nx = -uy, ny = ux;
+  if (nx * -0.7 + ny * -0.7 < 0) { nx = -nx; ny = -ny; }
+  return [nx, ny];
+}
+// Tapered capsule from a (radius r0) to b (radius r1): one closed outline with
+// round ends, cel-shaded like a cylinder (dark half away from the light, a lit
+// stripe toward it). tones: [light, mid, dark].
+function seg(a, b, r0, r1, tones, sw = 3.2) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  const ang = Math.atan2(uy, ux), [nx, ny] = litNormal(ux, uy);
+  const out = [];
+  for (let k = 0; k <= 8; k++) { const t = ang - Math.PI / 2 + (k / 8) * Math.PI; out.push([b[0] + Math.cos(t) * r1, b[1] + Math.sin(t) * r1]); }
+  for (let k = 0; k <= 8; k++) { const t = ang + Math.PI / 2 + (k / 8) * Math.PI; out.push([a[0] + Math.cos(t) * r0, a[1] + Math.sin(t) * r0]); }
+  const P2 = pts(out);
+  let s = `<polygon points="${P2}" fill="${tones[1]}"/>`;
+  s += `<polygon points="${pts([[a[0] - nx * r0 * 0.15, a[1] - ny * r0 * 0.15], [b[0] - nx * r1 * 0.15, b[1] - ny * r1 * 0.15], [b[0] - nx * r1, b[1] - ny * r1], [a[0] - nx * r0, a[1] - ny * r0]])}" fill="${tones[2]}"/>`;
+  s += `<path d="M${f(a[0] + nx * r0 * 0.55)} ${f(a[1] + ny * r0 * 0.55)} L${f(b[0] + nx * r1 * 0.55)} ${f(b[1] + ny * r1 * 0.55)}" stroke="${tones[0]}" stroke-width="${f(Math.min(r0, r1) * 0.4)}" stroke-linecap="round" opacity=".85"/>`;
+  s += `<polygon points="${P2}" fill="none" stroke="${P.ink}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+  return s;
+}
+// A box from a to b, half-width h, shaded with its lit half toward the light.
+function rbox(a, b, h, tones, sw = 3) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  const [nx, ny] = litNormal(ux, uy);
+  const q = (p, k) => [p[0] + nx * h * k, p[1] + ny * h * k];
+  return poly([q(a, 1), q(b, 1), q(b, -1), q(a, -1)], tones[1], sw) +
+    `<polygon points="${pts([q(a, 1), q(b, 1), q(b, 0.35), q(a, 0.35)])}" fill="${tones[0]}"/>` +
+    `<polygon points="${pts([q(a, -0.35), q(b, -0.35), q(b, -1), q(a, -1)])}" fill="${tones[2]}"/>` +
+    `<polygon points="${pts([q(a, 1), q(b, 1), q(b, -1), q(a, -1)])}" fill="none" stroke="${P.ink}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+}
+// Armoured joint (knee or elbow pad): a rounded plate with a bolt.
+function pad(x, y, r, tones) {
+  return circ(x, y, r, tones[1], 3) + `<path d="M${f(x - r * 0.75)} ${f(y - r * 0.2)} A${f(r * 0.8)} ${f(r * 0.8)} 0 0 1 ${f(x + r * 0.3)} ${f(y - r * 0.75)}" stroke="${tones[0]}" stroke-width="2.4" fill="none"/>` + circ(x + r * 0.15, y + r * 0.1, r * 0.25, tones[2], 1.6);
+}
+
 // ------------------------------------------------------------------ ENFORCER
-// Hulking armour, spiked dome shoulders, a recessed angry face, rainbow cables,
-// glowing orange chest vent, a gatling arm.
+// Hulking brute in powered armour (reference: ENFORCER): head sunk into a collar
+// between spiked dome shoulders, angry cyborg face, rainbow cables looping over
+// the shoulders, glowing chest vent, a huge fist on the far arm and a gatling
+// on the near forearm, thick armoured legs and boots.
 function enforcer(K, fr) {
   const atk = fr.attack, p = fr.phase || 0;
-  const bob = atk == null ? -Math.abs(Math.sin(TAU * p)) * 2.6 : atk === 1 ? 3 : 0;
-  const hip = [80, 116 + bob];
-  const G = T.gun;
+  const bob = atk == null ? -Math.abs(Math.sin(TAU * p)) * 2.4 : atk === 1 ? 2 : -1;
+  const lean = atk === 1 ? 3 : 0;
+  const G = T.gun, NEAR = [G[0], G[1], G[2]], FAR = [G[1], G[2], G[3]], DARK = [G[2], G[3], G[4]];
+  const B = (y) => y + bob;
   return K.part('unit', () => {
     let s = '';
-    const stride = atk == null ? 10 : 0;
-    const legPair = (near) => {
-      const hp = [hip[0] + (near ? 10 : -10), hip[1]];
-      const ft = atk == null ? foot(hp[0], p, near ? 0 : 0.5, stride, 7) : [hp[0] + (near ? 8 : -6), GY];
-      const kn = knee(hp, ft, 18, 18, 1);
-      const tone = near ? G[1] : G[3];
-      let t = limb(hp, kn, 17, tone, near ? G[0] : null) + limb(kn, ft, 15, tone);
-      t += poly([[kn[0] - 9, kn[1] - 8], [kn[0] + 9, kn[1] - 9], [kn[0] + 10, kn[1] + 6], [kn[0] - 8, kn[1] + 7]], near ? G[2] : G[4], 2.8);
-      t += poly([[ft[0] - 12, ft[1] - 10], [ft[0] + 12, ft[1] - 11], [ft[0] + 16, ft[1] + 1], [ft[0] - 13, ft[1] + 1]], near ? G[3] : G[4], 3);
+    // legs: hip -> knee -> ankle with IK, boots on the ground
+    const leg = (near) => {
+      const hp = [near ? 92 + lean : 72 + lean, B(100)];
+      const ft = atk == null ? foot(hp[0] + (near ? 4 : -2), p, near ? 0 : 0.5, 11, 7, 146) : [hp[0] + (near ? 8 : -6), 146];
+      const kn = knee(hp, ft, 24, 24, 1);
+      const tones = near ? NEAR : DARK;
+      let t = seg(hp, kn, 11, 9, tones) + seg(kn, ft, 9, 7.5, tones);
+      // shin guard on the front of the shin
+      const sx = (kn[0] + ft[0]) / 2, sy = (kn[1] + ft[1]) / 2;
+      t += poly([[sx + 2, sy - 9], [sx + 9, sy - 7], [sx + 8, sy + 7], [sx + 2, sy + 9]], tones[1], 2.4);
+      t += pad(kn[0] + 2, kn[1], near ? 8.5 : 7.5, tones);
+      // boot
+      const [fx, fy] = ft;
+      t += poly([[fx - 11, fy - 9], [fx + 6, fy - 11], [fx + 15, fy - 5], [fx + 17, fy + 3], [fx - 12, fy + 3]], tones[2], 3.2);
+      t += poly([[fx - 9, fy - 8], [fx + 5, fy - 10], [fx + 9, fy - 6], [fx - 8, fy - 4]], tones[1], 0);
+      t += `<path d="M${f(fx - 12)} ${f(fy + 1)} H${f(fx + 17)}" stroke="${P.ink}" stroke-width="3"/>`;
       return t;
     };
-    s += legPair(false);
-    // rainbow cables from the back of the helmet down to the hips
-    const cab = ['#3ff0ff', '#7dff5a', '#ff3dc8', '#ff8a1e'];
-    cab.forEach((c, i) => {
-      const d = `M${f(66 - i * 3)} ${f(40 + bob)} C${f(40 - i * 4)} ${f(30 + bob)} ${f(30 - i * 3)} ${f(70 + bob)} ${f(44 + i * 2)} ${f(96 + bob)}`;
-      s += `<path d="${d}" stroke="${P.ink}" stroke-width="7" fill="none" stroke-linecap="round"/><path d="${d}" stroke="${c}" stroke-width="3.6" fill="none" stroke-linecap="round"/>`;
-    });
-    // far shoulder dome + big fist arm
-    s += circ(50, 58 + bob, 19, G[2], 3.4);
-    const fist = atk === 1 ? [40, 122 + bob] : atk === 0 ? [30, 70 + bob] : [36, 104 + bob];
-    s += limb([48, 70 + bob], fist, 15, G[3]);
-    s += `<rect x="${f(fist[0] - 12)}" y="${f(fist[1] - 11)}" width="24" height="22" rx="7" fill="${G[2]}" stroke="${P.ink}" stroke-width="3.2"/>`;
-    s += `<path d="M${f(fist[0] - 10)} ${f(fist[1] - 3)} H${f(fist[0] + 10)} M${f(fist[0] - 10)} ${f(fist[1] + 4)} H${f(fist[0] + 10)}" stroke="${P.ink}" stroke-width="2"/>`;
-    // torso
-    const tor = [[52, 50 + bob], [112, 48 + bob], [120, 92 + bob], [104, 118 + bob], [60, 120 + bob], [46, 92 + bob]];
-    s += poly(tor, G[1], 3.6);
-    s += poly([[54, 52 + bob], [80, 51 + bob], [74, 118 + bob], [60, 119 + bob], [48, 92 + bob]], G[0], 0);
-    s += `<path d="M58 ${f(80 + bob)} L114 ${f(78 + bob)} M64 ${f(104 + bob)} L110 ${f(102 + bob)}" stroke="${P.ink}" stroke-width="2.6"/>`;
-    s += K.hatch(`M98 ${f(48 + bob)} L120 ${f(92 + bob)} L104 ${f(118 + bob)} L96 ${f(118 + bob)} Z`, { density: 1.1, len: [6, 11], w: 1.5 });
-    s += K.rivets([[56, 56 + bob], [108, 54 + bob], [58, 112 + bob], [104, 110 + bob]], 2.2);
+    s += leg(false);
+    // far arm: shoulder -> elbow -> gauntlet -> big fist (swings opposite the far leg)
+    const sw = atk == null ? Math.sin(TAU * p) * 0.35 : 0;
+    const sh1 = [52 + lean, B(54)];
+    const el1 = atk === 0 ? [34, B(58)] : [38 + lean + Math.sin(sw) * 12, B(76)];
+    const fist = atk === 0 ? [30, B(36)] : atk === 1 ? [40 + lean, B(110)] : [36 + lean + Math.sin(sw) * 20, B(100)];
+    s += seg(sh1, el1, 9, 8, FAR) + pad(el1[0], el1[1], 7, FAR) + seg(el1, fist, 10, 12, FAR);
+    s += `<rect x="${f(fist[0] - 12)}" y="${f(fist[1] - 10)}" width="24" height="22" rx="7" fill="${G[2]}" stroke="${P.ink}" stroke-width="3.2"/>`;
+    s += `<path d="M${f(fist[0] - 11)} ${f(fist[1] - 3)} H${f(fist[0] + 11)} M${f(fist[0] - 4)} ${f(fist[1] - 10)} V${f(fist[1] - 3)} M${f(fist[0] + 3)} ${f(fist[1] - 10)} V${f(fist[1] - 3)}" stroke="${P.ink}" stroke-width="2"/>`;
+    s += `<path d="M${f(fist[0] - 10)} ${f(fist[1] - 8)} H${f(fist[0] + 2)}" stroke="${G[1]}" stroke-width="2.4"/>`;
+    // far shoulder dome (partly behind the torso)
+    s += circ(54 + lean, B(46), 17, G[2], 3.4) + circ(48 + lean, B(38), 3.2, G[3], 2) + circ(60 + lean, B(34), 3.2, G[3], 2);
+    // rainbow cable hanging at the far side of the waist
+    const cab = ['#3ff0ff', '#7dff5a', '#ffd23a', '#ff3dc8'];
+    const bundle = (d, w = 2.1) => `<path d="${d}" stroke="${P.ink}" stroke-width="${f(w * 4 + 4)}" fill="none" stroke-linecap="round"/>` + cab.map((c, i) => `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round" transform="translate(${f((i - 1.5) * w * 0.85)} ${f((i - 1.5) * w * 0.6)})"/>`).join('');
+    s += bundle(`M${f(56 + lean)} ${f(B(70))} C${f(44 + lean)} ${f(B(78))} ${f(48 + lean)} ${f(B(94))} ${f(62 + lean)} ${f(B(94))}`);
+    // torso: barrel chest narrowing to the waist
+    const X = (x) => x + lean;
+    const tor = [[X(56), B(42)], [X(108), B(40)], [X(118), B(58)], [X(112), B(84)], [X(102), B(98)], [X(66), B(100)], [X(56), B(86)], [X(50), B(60)]];
+    s += poly(tor, G[2], 3.6);
+    // two rounded pec plates (lit one on the left), a seam between them
+    s += `<path d="M${X(54)} ${f(B(48))} Q${X(56)} ${f(B(42))} ${X(66)} ${f(B(42))} L${X(83)} ${f(B(42))} L${X(82)} ${f(B(66))} Q${X(66)} ${f(B(72))} ${X(54)} ${f(B(64))} Z" fill="${G[0]}" stroke="${P.ink}" stroke-width="2.8" stroke-linejoin="round"/>`;
+    s += `<path d="M${X(86)} ${f(B(42))} L${X(104)} ${f(B(41))} Q${X(114)} ${f(B(42))} ${X(116)} ${f(B(52))} L${X(115)} ${f(B(62))} Q${X(100)} ${f(B(72))} ${X(86)} ${f(B(66))} Z" fill="${G[1]}" stroke="${P.ink}" stroke-width="2.8" stroke-linejoin="round"/>`;
+    s += `<path d="M${X(58)} ${f(B(47))} Q${X(64)} ${f(B(44))} ${X(78)} ${f(B(45))}" stroke="#d6dde6" stroke-width="2.4" fill="none" opacity=".8"/>`;
+    // segmented abdomen plates around the vent
+    for (const [y0, x0, x1] of [[90, 64, 104]]) s += `<path d="M${X(x0)} ${f(B(y0))} Q${X(84)} ${f(B(y0 + 4))} ${X(x1)} ${f(B(y0 - 1))}" stroke="${P.ink}" stroke-width="2.2" fill="none"/>`;
+    s += poly([[X(58), B(68)], [X(66), B(70)], [X(68), B(90)], [X(60), B(86)]], G[1], 2.2);
+    s += poly([[X(102), B(69)], [X(112), B(66)], [X(108), B(84)], [X(100), B(89)]], G[3], 2.2);
+    s += `<polygon points="${pts(tor)}" fill="none" stroke="${P.ink}" stroke-width="3.6" stroke-linejoin="round"/>`;
+    s += K.hatch(`M${X(100)} ${f(B(40))} L${X(118)} ${f(B(58))} L${X(102)} ${f(B(98))} L${X(96)} ${f(B(98))} Z`, { density: 1.2, len: [5, 9], w: 1.4 });
+    s += K.rivets([[X(60), B(50)], [X(104), B(48)], [X(62), B(92)], [X(102), B(90)]], 2.2);
     // chest vent (glows orange)
-    const vent = [[70, 84 + bob], [98, 83 + bob], [99, 100 + bob], [71, 101 + bob]];
+    const vent = [[X(70), B(72)], [X(98), B(71)], [X(97), B(87)], [X(71), B(88)]];
     s += poly(vent, '#3a2416', 3);
     K.glow(`<polygon points="${pts(vent)}" fill="${T.orange.c}" opacity=".35" filter="url(#bloom)"/>` +
-      [76, 84, 92].map((x) => `<rect x="${x - 2.5}" y="${f(86 + bob)}" width="5" height="13" rx="2.5" fill="${T.orange.c}"/><rect x="${x - 1}" y="${f(87 + bob)}" width="2" height="10" fill="${T.orange.core}"/>`).join(''));
-    // round helmet with a big angry face in it
-    const hx = 86, hy = 34 + bob;
-    s += circ(hx, hy, 22, G[2], 3.6);
-    s += `<path d="M${f(hx - 19)} ${f(hy - 8)} A22 22 0 0 1 ${f(hx + 8)} ${f(hy - 21)}" stroke="${G[0]}" stroke-width="4.5" fill="none" opacity=".9"/>`;
-    s += ell(hx + 3, hy + 3, 14, 16, '#d9876a', 3);                                                   // face
-    s += `<path d="M${f(hx - 9)} ${f(hy + 8)} Q${f(hx + 3)} ${f(hy + 20)} ${f(hx + 16)} ${f(hy + 8)}" stroke="#a85a44" stroke-width="3" fill="none" opacity=".7"/>`;   // jaw shade
-    s += poly([[hx - 10, hy - 10], [hx + 2, hy - 13], [hx + 4, hy - 3], [hx - 10, hy - 1]], '#7c8698', 2);        // cyborg plate
-    s += K.rivets([[hx - 7, hy - 8]], 1.4);
-    s += `<path d="M${f(hx - 6)} ${f(hy - 3)} L${f(hx + 2)} ${f(hy + 1)} M${f(hx + 6)} ${f(hy + 1)} L${f(hx + 14)} ${f(hy - 4)}" stroke="${P.ink}" stroke-width="3" stroke-linecap="round"/>`;   // angry brows
-    K.glow(`<circle cx="${f(hx - 1)}" cy="${f(hy + 4)}" r="2.6" fill="#ff3a3a"/><circle cx="${f(hx + 10)}" cy="${f(hy + 4)}" r="2.6" fill="#ff3a3a"/><circle cx="${f(hx - 1)}" cy="${f(hy + 4)}" r="6" fill="#ff3a3a" opacity=".45" filter="url(#bloom)"/>`);
-    s += `<rect x="${f(hx - 4)}" y="${f(hy + 10)}" width="15" height="6" rx="1" fill="#f1e4c8" stroke="${P.ink}" stroke-width="2"/><path d="M${f(hx + 1)} ${f(hy + 10)} v6 M${f(hx + 6)} ${f(hy + 10)} v6 M${f(hx - 4)} ${f(hy + 13)} h15" stroke="${P.ink}" stroke-width="1.3"/>`;
-    // rainbow cables arching from the helmet over both shoulders
-    const loops = [`M${f(hx - 14)} ${f(hy - 14)} C${f(hx - 26)} ${f(hy - 40)} ${f(hx - 50)} ${f(hy - 22)} ${f(hx - 40)} ${f(hy + 8)}`,
-      `M${f(hx + 12)} ${f(hy - 18)} C${f(hx + 20)} ${f(hy - 44)} ${f(hx + 46)} ${f(hy - 30)} ${f(hx + 34)} ${f(hy + 2)}`];
-    for (const d of loops) {
-      s += `<path d="${d}" stroke="${P.ink}" stroke-width="11" fill="none" stroke-linecap="round"/>`;
-      ['#3ff0ff', '#7dff5a', '#ffd23a', '#ff3dc8'].forEach((c, i) => { s += `<path d="${d}" stroke="${c}" stroke-width="2.2" fill="none" stroke-linecap="round" transform="translate(${f((i - 1.5) * 1.6)} ${f((i - 1.5) * 1.6)})"/>`; });
-    }
+      [77, 84, 91].map((x) => `<rect x="${f(X(x) - 2.5)}" y="${f(B(74))}" width="5" height="11" rx="2.5" fill="${T.orange.c}"/><rect x="${f(X(x) - 1)}" y="${f(B(75))}" width="2" height="8" fill="${T.orange.core}"/>`).join(''));
+    // near leg, then the belt over both hips
+    s += leg(true);
+    s += poly([[X(62), B(94)], [X(106), B(92)], [X(108), B(104)], [X(62), B(106)]], G[3], 3);
+    s += `<rect x="${f(X(80))}" y="${f(B(94))}" width="10" height="10" rx="2" fill="${T.brass[1]}" stroke="${P.ink}" stroke-width="2"/>`;
+    // rainbow cables looping from the shoulder domes into the back of the helmet (behind the head)
+    const hx = X(84), hy = B(22);
+    s += bundle(`M${f(X(56))} ${f(B(32))} C${f(X(52))} ${f(B(4))} ${f(hx - 18)} ${f(B(-2))} ${f(hx - 8)} ${f(hy - 10)}`, 1.5);
+    s += bundle(`M${f(X(114))} ${f(B(30))} C${f(X(118))} ${f(B(2))} ${f(hx + 18)} ${f(B(-4))} ${f(hx + 8)} ${f(hy - 12)}`, 1.5);
+    // head: helmet hood around an angry cyborg face, sitting on the collar
+    s += circ(hx, hy, 18, G[2], 3.4);
+    s += `<path d="M${f(hx - 16)} ${f(hy - 6)} A18 18 0 0 1 ${f(hx + 6)} ${f(hy - 17)}" stroke="${G[0]}" stroke-width="4" fill="none" opacity=".9"/>`;
+    s += ell(hx + 3, hy + 4, 12.5, 14, '#d9876a', 2.8);                                                       // face
+    s += `<path d="M${f(hx - 7)} ${f(hy + 11)} Q${f(hx + 3)} ${f(hy + 19)} ${f(hx + 13)} ${f(hy + 11)}" stroke="#a85a44" stroke-width="2.6" fill="none" opacity=".7"/>`;
+    s += poly([[hx - 9, hy - 8], [hx + 2, hy - 10], [hx + 3, hy - 1], [hx - 9, hy + 1]], '#7c8698', 2);            // cyborg plate
+    s += K.rivets([[hx - 6, hy - 6]], 1.3);
+    s += `<path d="M${f(hx - 6)} ${f(hy - 1)} L${f(hx + 2)} ${f(hy + 3)} M${f(hx + 6)} ${f(hy + 3)} L${f(hx + 14)} ${f(hy - 2)}" stroke="${P.ink}" stroke-width="3" stroke-linecap="round"/>`;   // brows
+    K.glow(`<circle cx="${f(hx)}" cy="${f(hy + 6)}" r="2.4" fill="#ff3a3a"/><circle cx="${f(hx + 10)}" cy="${f(hy + 6)}" r="2.4" fill="#ff3a3a"/><circle cx="${f(hx + 5)}" cy="${f(hy + 6)}" r="8" fill="#ff3a3a" opacity=".3" filter="url(#bloom)"/>`);
+    s += `<rect x="${f(hx - 3)}" y="${f(hy + 11)}" width="14" height="6" rx="1" fill="#f1e4c8" stroke="${P.ink}" stroke-width="1.8"/><path d="M${f(hx + 1.5)} ${f(hy + 11)} v6 M${f(hx + 6)} ${f(hy + 11)} v6 M${f(hx - 3)} ${f(hy + 14)} h14" stroke="${P.ink}" stroke-width="1.1"/>`;   // gritted teeth
+    s += poly([[X(64), B(40)], [X(106), B(38)], [X(108), B(48)], [X(62), B(50)]], G[2], 3);                    // collar
+    s += `<path d="M${X(66)} ${f(B(42))} L${X(104)} ${f(B(40))}" stroke="${G[0]}" stroke-width="2.2"/>`;
     // near shoulder dome with studs
-    s += circ(114, 56 + bob, 21, G[1], 3.6);
-    s += `<path d="M98 ${f(46 + bob)} A21 21 0 0 1 126 ${f(40 + bob)}" stroke="${G[0]}" stroke-width="4" fill="none" opacity=".9"/>`;
-    for (const [sx, sy] of [[108, 42], [122, 50], [114, 64]]) s += circ(sx, sy + bob, 3.6, G[3], 2.2);
-    // gatling arm pointing forward-down
-    const gun0 = [118, 80 + bob], gun1 = atk === 0 ? [152, 84 + bob] : [152, 102 + bob];
-    s += limb([112, 70 + bob], gun0, 15, G[2]);
-    s += K.barrel({ x1: gun0[0], y1: gun0[1], x2: gun1[0], y2: gun1[1], r: 9, tones: [G[1], G[2], G[3], G[4]], muzzle: 'open', rings: 2 });
-    if (atk === 1) K.glow(`<circle cx="${f(gun1[0] + 3)}" cy="${f(gun1[1])}" r="12" fill="${T.orange.c}" opacity=".8" filter="url(#bloom)"/><circle cx="${f(gun1[0] + 3)}" cy="${f(gun1[1])}" r="5" fill="${T.orange.core}"/>`);
-    s += legPair(true);
+    s += circ(X(116), B(46), 19, G[1], 3.6);
+    s += `<path d="M${X(101)} ${f(B(38))} A19 19 0 0 1 ${X(126)} ${f(B(32))}" stroke="${G[0]}" stroke-width="4" fill="none" opacity=".9"/>`;
+    s += `<path d="M${X(108)} ${f(B(62))} A19 19 0 0 0 ${X(134)} ${f(B(50))}" stroke="${G[3]}" stroke-width="4" fill="none"/>`;
+    for (const [sx, sy] of [[110, 34], [124, 42], [117, 56]]) s += circ(X(sx), B(sy), 3.4, G[3], 2.2);
+    // near arm: upper arm, elbow, forearm into the gatling
+    const gsw = atk == null ? -Math.sin(TAU * p) * 0.12 : 0;               // the gun arm swings a little while walking
+    const sh2 = [X(120), B(58)];
+    const el2 = [X(126), B(82)];
+    const aim = (atk === 0 ? 0.7 : atk === 1 ? 0.82 : 1.0) + gsw;           // gun angle below horizontal (radians)
+    const g0 = [el2[0] + 1, el2[1] + 3], g1 = [g0[0] + Math.cos(aim) * 18, g0[1] + Math.sin(aim) * 18];
+    const L = atk === 1 ? 38 : atk === 0 ? 40 : 44;
+    const mz = [g0[0] + Math.cos(aim) * L, g0[1] + Math.sin(aim) * L];
+    s += seg(sh2, el2, 9, 8, NEAR) + pad(el2[0], el2[1], 7.5, NEAR);
+    const ux = Math.cos(aim), uy = Math.sin(aim), [nx, ny] = litNormal(ux, uy);
+    for (const k of [-1, 1]) {                                               // twin rotary barrels
+      const o = [nx * 3.6 * k, ny * 3.6 * k];
+      s += K.barrel({ x1: g1[0] + o[0], y1: g1[1] + o[1], x2: mz[0] + o[0], y2: mz[1] + o[1], r: 3.6, tones: [G[1], G[2], G[3], G[4]], muzzle: 'open', rings: 0 });
+    }
+    const c0 = [mz[0] - ux * 5, mz[1] - uy * 5];
+    s += rbox(c0, [mz[0] + ux * 1, mz[1] + uy * 1], 8.5, [G[1], G[2], G[3]], 2.6);   // muzzle collar
+    const mid = [(g1[0] + mz[0]) / 2, (g1[1] + mz[1]) / 2];
+    s += rbox([mid[0] - ux * 2, mid[1] - uy * 2], [mid[0] + ux * 2, mid[1] + uy * 2], 8, [G[1], G[2], G[3]], 2.4);   // barrel clamp
+    s += rbox([g0[0] - ux * 6, g0[1] - uy * 6], g1, 10, [G[0], G[1], G[3]]);            // gun housing on the forearm
+    s += `<path d="M${f(g0[0] + nx * 4)} ${f(g0[1] + ny * 4)} L${f(g1[0] + nx * 4)} ${f(g1[1] + ny * 4)}" stroke="${P.hazard[0]}" stroke-width="2.4"/>`;
+    s += circ(g0[0] - 5, g0[1] + 9, 7, G[3], 2.8) + circ(g0[0] - 5, g0[1] + 9, 2.6, G[1], 1.6);   // ammo drum
+    s += K.rivets([[g0[0] + 3, g0[1] - 3], [g1[0] - 3, g1[1] - 3]], 1.8);
+    if (atk === 1) K.glow(`<circle cx="${f(mz[0] + 4)}" cy="${f(mz[1] + 2)}" r="12" fill="${T.orange.c}" opacity=".8" filter="url(#bloom)"/><circle cx="${f(mz[0] + 4)}" cy="${f(mz[1] + 2)}" r="5" fill="${T.orange.core}"/>`);
     return s;
   });
 }
@@ -332,9 +411,11 @@ function mech(K, fr) {
       const hp = [near ? 92 : 64, 102 + bob];
       const ft = atk == null ? foot(hp[0], p, near ? 0 : 0.5, 9, 7) : [hp[0] + (near ? 4 : -4), GY];
       const kn = knee(hp, ft, 22, 26, -1);
-      const tone = near ? O[1] : O[3];
-      let t = limb(hp, kn, 14, tone, near ? O[0] : null) + limb(kn, ft, 12, tone);
-      t += circ(kn[0], kn[1], near ? 7 : 6, near ? R[1] : R[3], 2.8);
+      const tones = near ? [O[0], O[1], O[2]] : [O[2], O[3], '#26251c'];
+      let t = seg(hp, kn, 10, 8.5, tones) + seg(kn, ft, 8.5, 7, tones);
+      // hydraulic piston behind the shin
+      t += `<path d="M${f(kn[0] - 6)} ${f(kn[1] + 4)} L${f(ft[0] - 8)} ${f(ft[1] - 12)}" stroke="${P.ink}" stroke-width="6" stroke-linecap="round"/><path d="M${f(kn[0] - 6)} ${f(kn[1] + 4)} L${f(ft[0] - 8)} ${f(ft[1] - 12)}" stroke="${T.gun[0]}" stroke-width="2.4" stroke-linecap="round"/>`;
+      t += pad(kn[0], kn[1], near ? 8 : 7, near ? [R[0], R[1], R[3]] : [R[1], R[2], R[3]]);
       t += poly([[ft[0] - 14, ft[1] - 9], [ft[0] + 14, ft[1] - 10], [ft[0] + 18, ft[1] + 1], [ft[0] - 15, ft[1] + 1]], near ? O[2] : O[3], 3);
       t += `<path d="M${f(ft[0] + 10)} ${f(ft[1] - 1)} l6 0 M${f(ft[0] + 12)} ${f(ft[1] - 6)} l6 2" stroke="${P.ink}" stroke-width="2.4"/>`;
       return t;
@@ -360,7 +441,7 @@ function mech(K, fr) {
       `<circle cx="96" cy="${f(52 + bob)}" r="3" fill="#ffd23a"/>`);
     s += poly([[82, 60 + bob], [90, 60 + bob], [86, 53 + bob]], P.hazard[0], 1.6);
     // cannon on top
-    const c1 = atk === 0 ? [144, 14 + bob] : [148, 24 + bob];
+    const c1 = atk === 0 ? [136, 14 + bob] : [140, 24 + bob];
     s += K.box({ x: 62, y: 42 + bob, w: 30, h: 14, d: 12, tones: [T.gun[1], T.gun[2], T.gun[3], T.gun[4]], stroke: 3, hatchSide: false });
     s += K.barrel({ x1: 82, y1: 30 + bob, x2: c1[0], y2: c1[1], r: 7, tones: [T.gun[1], T.gun[2], T.gun[3], T.gun[4]], muzzle: 'open', rings: 2 });
     s += `<rect x="66" y="${f(14 + bob)}" width="12" height="10" fill="${T.gun[2]}" stroke="${P.ink}" stroke-width="2.6"/>`;
@@ -410,7 +491,7 @@ function drone(K, fr) {
 export const UNITS = {
   raider:   { name: 'Raider',   draw: raider,   height: 140 },
   scout:    { name: 'Scout',    draw: scout,    height: 112 },
-  enforcer: { name: 'Enforcer', draw: enforcer, height: 136 },
+  enforcer: { name: 'Enforcer', draw: enforcer, height: 140 },
   mech:     { name: 'Mech',     draw: mech,     height: 140 },
   drone:    { name: 'Drone',    draw: drone,    height: 70 },
   trooper:  { name: 'Trooper',  draw: trooper,  height: 116 },
