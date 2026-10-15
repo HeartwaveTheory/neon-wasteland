@@ -211,8 +211,8 @@ const TOWERS = {
     head: { pivot: [270, 150], muzzle: [113, 135], faces: -1 },
   },
   garrison: {
-    name: 'Garrison', cost: [80, 110, 150], range: [280, 280, 280], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
-    respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers block the road and hold raiders in place. Tap Rally to move them.',
+    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
+    respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers hold the road near their rally point and never leave the tower\'s range. Tap Rally to move them.',
     head: { pivot: [256, 162], muzzle: [178, 429], faces: 0 },
   },
 };
@@ -546,6 +546,15 @@ function fireRail(tw) {
 }
 
 // ---------------------------------------------------------------- troopers (garrison + squad)
+// Troopers only fight inside their guard zone (this ground radius around the rally
+// point) and, for a Garrison, inside the tower's range; outside it they let go.
+const GUARD = 60;
+function inZone(tr, e, post) {
+  if (edist(post.x, post.y, e.x, e.y) > GUARD) return false;
+  if (tr.kind !== 'trooper') return true;
+  const pad = PADS[tr.tower.i];
+  return edist(pad.x, pad.y, e.x, e.y) <= TOWERS.garrison.range[tr.tower.lvl];
+}
 function trooperPost(rally, k) {
   const off = [[-16, -6], [16, -6], [0, 10]][k % 3];
   return { x: rally.x + off[0], y: rally.y + off[1] };
@@ -578,11 +587,11 @@ function updateTroop(tr, dt) {
   const lvl = squad ? 0 : tr.tower.lvl;
   const dmg = squad ? SPELLS.squad.dmg : TOWERS.garrison.troopDmg[lvl];
   // find a target near the post: prefer an enemy no one is blocking
-  if (tr.target && (tr.target.dead || tr.target.def.air)) releaseTrooper(tr);
+  if (tr.target && (tr.target.dead || tr.target.def.air || !inZone(tr, tr.target, post))) releaseTrooper(tr);
   if (!tr.target) {
-    let best = null, bd = 58, assist = null, ad = 58;
+    let best = null, bd = Infinity, assist = null, ad = Infinity;
     for (const e of S.enemies) {
-      if (e.dead || e.def.air) continue;
+      if (e.dead || e.def.air || !inZone(tr, e, post)) continue;
       const d = Math.hypot(e.x - post.x, e.y - post.y);
       const free = !e.blockers || e.blockers.length === 0;
       if (free && d < bd) { bd = d; best = e; }
@@ -966,7 +975,7 @@ function render() {
   }
   for (const tw of S.towers) if (tw && tw.kind === 'garrison') {
     const r = tw.rally; ctx.strokeStyle = 'rgba(63,240,255,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.ellipse(r.x, r.y, 34, 34 * SQ, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.ellipse(r.x, r.y, GUARD, GUARD * SQ, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   }
   // ground units, towers and troops, sorted by depth; air units after
   const list = [];
