@@ -27,3 +27,5 @@ Balance, from bot playtests (`sim.mjs`, 3 runs per strategy):
 Source: `game.html` with placeholders; `build.py` embeds `assets/` (the map and each tower's base and head layer, exported
 from `../maplab` and `../towers2`) and the fonts into `dist/neon-wasteland.html`. `test.mjs` takes screenshots and
 `sim.mjs` runs the bot playtests (both need Playwright).
+`tools/trace_road.py` traces the enemy routes along the middle of the painted road (run it again if the map changes,
+then paste its output into `game.html`); `walk.mjs` renders a crowd of enemies on both routes to check them.

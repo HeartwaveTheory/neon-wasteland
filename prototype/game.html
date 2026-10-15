@@ -132,23 +132,35 @@ const ASSET = {
 };
 const MAP_W = 1672, MAP_H = 941;
 const SQ = 0.7;               // ground ellipse ratio: ranges are ellipses rx = r, ry = r * SQ
-const SPR = 0.46;             // tower sprite scale (512 px sprite -> 235 logical)
+const SPR = 0.23;             // tower sprite scale (512 px sprite -> 118 logical)
+const TS = SPR / 0.46;        // tower effects scale with the sprite
 const INK = '#120d09';
 
 // ---------------------------------------------------------------- map data
 const PADS = [{ x: 458, y: 162 }, { x: 1025, y: 218 }, { x: 548, y: 345 }, { x: 1197, y: 362 }];
 const HQ = { x: 884, y: 548 };
-const ROUTE_L = [[236, -30], [240, 60], [262, 140], [300, 195], [370, 232], [460, 252], [560, 262], [660, 272], [760, 290], [840, 318], [880, 350]];
-const ROUTE_R = [[1300, -30], [1268, 50], [1222, 110], [1170, 160], [1105, 212], [1030, 258], [955, 292], [900, 330]];
-const SOUTH = [[882, 362], [884, 430], [884, 500], [884, 548]];
-const GATES = { L: { x: 236, y: 52 }, R: { x: 1276, y: 52 } };
+// Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate.
+const ROUTE_L = [[145, -30], [145, 11], [157, 29], [174, 45], [188, 63], [203, 81], [221, 94], [242, 105], [259, 123], [275, 139], [288, 157], [299, 177], [315, 195], [331, 211], [349, 227], [371, 236], [391, 246], [413, 250], [435, 251], [457, 255], [479, 255], [501, 255], [523, 255], [545, 249], [567, 243], [589, 243], [611, 242], [633, 239], [655, 238], [677, 237], [699, 237], [721, 238], [743, 248], [763, 257], [783, 270], [803, 281], [823, 295], [839, 311], [855, 327], [870, 343], [884, 361], [887, 383], [887, 405], [886, 427], [885, 449], [885, 471], [885, 493], [885, 515], [885, 523], [884, 548]];
+const ROUTE_R = [[1283, -30], [1283, 83], [1274, 105], [1262, 125], [1250, 145], [1238, 165], [1237, 187], [1231, 209], [1215, 227], [1197, 241], [1177, 252], [1155, 259], [1133, 265], [1111, 274], [1089, 281], [1067, 288], [1047, 297], [1030, 311], [1015, 329], [997, 343], [975, 350], [953, 357], [933, 367], [915, 383], [899, 401], [888, 421], [885, 443], [885, 465], [885, 487], [885, 509], [885, 523], [884, 548]];
+// Road half-width at each route point: enemies spread sideways only where the road is wide enough.
+const HALFW_L = [0.0, 1.0, 5.0, 14.0, 20.4, 12.4, 14.2, 13.2, 21.8, 19.0, 26.6, 34.0, 26.8, 28.4, 25.0, 26.2, 26.4, 22.6, 22.0, 25.6, 26.0, 25.8, 29.0, 26.2, 27.2, 31.0, 31.8, 27.2, 23.0, 25.0, 28.2, 30.6, 29.8, 28.2, 26.2, 30.0, 26.8, 35.2, 34.6, 32.6, 35.2, 28.6, 27.0, 29.6, 28.6, 31.4, 30.0, 8.0, 0.0, 0.0];
+const HALFW_R = [0.0, 1.0, 12.2, 5.8, 10.8, 12.6, 14.0, 15.0, 16.8, 18.6, 17.4, 19.4, 24.0, 26.0, 22.6, 17.0, 12.0, 13.0, 16.8, 18.6, 8.6, 18.4, 22.8, 26.6, 33.6, 30.6, 28.0, 30.2, 36.0, 14.0, 0.0, 0.0];
+const GATES = { L: { x: 150, y: 40 }, R: { x: 1283, y: 40 } };
 
-function makePath(pts) {
+function makePath(pts, halfw) {
   const cum = [0];
   for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  return { pts, cum, len: cum[cum.length - 1] };
+  return { pts, cum, halfw, len: cum[cum.length - 1] };
 }
-const PATHS = { L: makePath([...ROUTE_L, ...SOUTH]), R: makePath([...ROUTE_R, ...SOUTH]) };
+const PATHS = { L: makePath(ROUTE_L, HALFW_L), R: makePath(ROUTE_R, HALFW_R) };
+// How far an enemy may stray sideways from the centre line at distance d (keeps the body on the road).
+function roomAt(path, d) {
+  const { cum, halfw } = path;
+  let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+  const t = clamp((d - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]), 0, 1);
+  const hw = halfw[i - 1] + (halfw[i] - halfw[i - 1]) * t;
+  return clamp(hw - 12, 0, 16);
+}
 function pathAt(path, d) {
   const { pts, cum } = path;
   d = Math.max(0, Math.min(path.len, d));
@@ -384,8 +396,8 @@ function upgrade(i) {
   if (S.gold < c) return false;
   S.gold -= c; tw.spent += c; tw.lvl++; tw.built = 0.35;
   if (tw.kind === 'garrison') for (const tr of tw.troops) { tr.maxHp = def.troopHp[tw.lvl]; tr.hp = tr.maxHp; tr.dead = false; tr.respawn = 0; }
-  sfx('build'); floatText(PADS[i].x, PADS[i].y - 200, 'LEVEL ' + (tw.lvl + 1), '#ffd23a');
-  burst(PADS[i].x, PADS[i].y - 90, def.glow, 22, 120, 4, 0.7);
+  sfx('build'); floatText(PADS[i].x, PADS[i].y - 200 * TS - 10, 'LEVEL ' + (tw.lvl + 1), '#ffd23a');
+  burst(PADS[i].x, PADS[i].y - 90 * TS, def.glow, 22, 120, 4, 0.7);
   return true;
 }
 function sell(i) {
@@ -476,7 +488,7 @@ function fireSniper(tw, tg) {
   const [mx, my] = muzzle(tw);
   const ty = tg.y - (tg.def.air ? 36 : 14);
   S.fx.push({ kind: 'tracer', x1: mx, y1: my, x2: tg.x, y2: ty, life: 0.12, max: 0.12, color: '#ff3a4a' });
-  S.fx.push({ kind: 'flash', x: mx, y: my, r: 12, life: 0.08, max: 0.08, color: '#ffe0b0' });
+  S.fx.push({ kind: 'flash', x: mx, y: my, r: 12 * TS + 4, life: 0.08, max: 0.08, color: '#ffe0b0' });
   burst(tg.x, ty, '#ffd8c8', 5, 70, 2.2, 0.25);
   if (crit) floatText(tg.x, ty - 20, 'HEADSHOT', '#ff4fd8');
   tw.recoil = 1; sfx('sniper');
@@ -522,7 +534,7 @@ function fireRail(tw) {
   }
   const [mx, my] = muzzle(tw);
   S.fx.push({ kind: 'rail', x1: mx, y1: my, x2: ex, y2: ey - 14, life: 0.32, max: 0.32 });
-  S.fx.push({ kind: 'flash', x: mx, y: my, r: 26, life: 0.12, max: 0.12, color: '#ffb35a' });
+  S.fx.push({ kind: 'flash', x: mx, y: my, r: 26 * TS + 6, life: 0.12, max: 0.12, color: '#ffb35a' });
   burst(mx, my, '#ffb35a', 14, 120, 3, 0.4);
   tw.recoil = 1; S.shake = Math.max(S.shake, 0.18); sfx('rail');
   tw.cd = def.rate[tw.lvl];
@@ -600,7 +612,7 @@ function hurtTroop(tr, amt) {
 function spawnEnemy(type, gate) {
   const def = ENEMIES[type];
   const hp = Math.round(def.hp * (1 + HP_PER_WAVE * Math.max(0, S.wave - 1)));
-  const e = { id: S.uid++, type, def, path: gate, d: 0, off: rand(-14, 14), hp, maxHp: hp, x: 0, y: 0, face: 1, cd: 0, blockers: [], seed: Math.random() * 10, hit: 0, dead: false };
+  const e = { id: S.uid++, type, def, path: gate, d: 0, off: rand(-1, 1), hp, maxHp: hp, x: 0, y: 0, face: 1, cd: 0, blockers: [], seed: Math.random() * 10, hit: 0, dead: false };
   if (def.boss) e.off = 0;
   const p = pathAt(PATHS[gate], 0); e.x = p.x; e.y = p.y;
   S.enemies.push(e);
@@ -626,7 +638,7 @@ function updateEnemy(e, dt) {
   e.swing = Math.max(0, (e.swing || 0) - dt * 4);
   const p = pathAt(PATHS[e.path], e.d);
   // lateral offset fades to zero at the end so everyone funnels into the gate
-  const rem = PATHS[e.path].len - e.d, off = e.off * Math.min(1, rem / 60);
+  const off = e.off * roomAt(PATHS[e.path], e.d);
   const nx = p.x - p.dy * off, ny = p.y + p.dx * off;
   if (!blocked) { const mdx = nx - e.x; if (Math.abs(mdx) > 0.05) e.face = mdx < 0 ? -1 : 1; }
   e.x = nx; e.y = ny;
@@ -861,7 +873,7 @@ function drawTower(tw) {
   const x0 = pad.x - 256 * SPR, y0 = pad.y - 420 * SPR;
   const pop = tw.built > 0 ? 1 + Math.sin((tw.built / 0.35) * Math.PI) * 0.06 : 1;
   // see-through while a unit stands behind the tower, so nothing on the road is hidden
-  const behind = (u) => !u.dead && u.y < pad.y - 8 && u.y > pad.y - 200 && Math.abs(u.x - pad.x) < 70;
+  const behind = (u) => !u.dead && u.y < pad.y - 8 * TS && u.y > pad.y - 200 * TS && Math.abs(u.x - pad.x) < 70 * TS;
   const target = S.enemies.some(behind) ? 0.5 : 1;
   tw.alpha = tw.alpha == null ? 1 : tw.alpha + (target - tw.alpha) * 0.2;
   ctx.save();
@@ -873,9 +885,9 @@ function drawTower(tw) {
   ctx.save();
   let rx = 0;
   if (tw.recoil > 0) {
-    const [mx] = def.head.muzzle; rx = -Math.sign((mx - px) * (tw.flip || 1)) * tw.recoil * 4;
+    const [mx] = def.head.muzzle; rx = -Math.sign((mx - px) * (tw.flip || 1)) * tw.recoil * 4 * TS;
   }
-  ctx.translate(rx, tw.kind === 'plasma' ? -Math.sin(S.t * 2) * 1.2 : 0);
+  ctx.translate(rx, tw.kind === 'plasma' ? -Math.sin(S.t * 2) * 1.2 * TS : 0);
   if (tw.flip === -1) { const cx = x0 + px * SPR; ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
   ctx.drawImage(IMG[tw.kind + '_head'], x0, y0, 512 * SPR, 512 * SPR);
   ctx.restore();
@@ -883,13 +895,13 @@ function drawTower(tw) {
   // railgun charge glow
   if (tw.kind === 'railgun' && tw.charge > 0) {
     const [mx, my] = muzzle(tw), k = 1 - tw.charge / 0.45;
-    glowDot(mx, my, 8 + k * 16, `rgba(255,150,40,${0.35 + k * 0.5})`);
+    glowDot(mx, my, (8 + k * 16) * TS + 4, `rgba(255,150,40,${0.35 + k * 0.5})`);
   }
-  if (tw.kind === 'plasma' && tw.pulse > 0) { const [mx, my] = muzzle(tw); glowDot(mx, my, 28, `rgba(63,240,255,${tw.pulse * 0.6})`); }
+  if (tw.kind === 'plasma' && tw.pulse > 0) { const [mx, my] = muzzle(tw); glowDot(mx, my, 28 * TS + 6, `rgba(63,240,255,${tw.pulse * 0.6})`); }
   // level chevrons
   for (let k = 0; k <= tw.lvl; k++) {
-    const cx = pad.x + 52, cy = pad.y + 12 - k * 7;
-    ctx.beginPath(); ctx.moveTo(cx - 7, cy + 3); ctx.lineTo(cx, cy - 2); ctx.lineTo(cx + 7, cy + 3); ctx.lineTo(cx + 7, cy + 6); ctx.lineTo(cx, cy + 1); ctx.lineTo(cx - 7, cy + 6); ctx.closePath();
+    const cx = pad.x + 40, cy = pad.y + 12 - k * 6;
+    ctx.beginPath(); ctx.moveTo(cx - 6, cy + 3); ctx.lineTo(cx, cy - 1.5); ctx.lineTo(cx + 6, cy + 3); ctx.lineTo(cx + 6, cy + 5.5); ctx.lineTo(cx, cy + 1); ctx.lineTo(cx - 6, cy + 5.5); ctx.closePath();
     inkFill('#ffd23a', 1.4);
   }
 }
@@ -1201,7 +1213,7 @@ function padAt(wx, wy) {
   for (let i = 0; i < PADS.length; i++) {
     const p = PADS[i];
     const inPad = ((wx - p.x) / 96) ** 2 + ((wy - p.y) / 50) ** 2 <= 1;
-    const inTower = S.towers[i] && Math.abs(wx - p.x) < 62 && wy < p.y && wy > p.y - 190;
+    const inTower = S.towers[i] && Math.abs(wx - p.x) < Math.max(40, 62 * TS) && wy < p.y && wy > p.y - Math.max(110, 190 * TS);
     if (inPad || inTower) return i;
   }
   return -1;
