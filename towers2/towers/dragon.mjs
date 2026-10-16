@@ -11,8 +11,9 @@
 //     grate glows orange, a spiked steel shoulder ring with a hot-pink neon tube
 //     under its lip, a chain sagging across the front
 //   - neck: a segmented scrap-plate neck in an S curve rising from the tank deck
-//     (vertical at the top, under the pivot), bronze throat plates down its front,
-//     hot-pink fins down its back, a ribbed napalm hose, a copper pipe and a gauge
+//     (vertical at the top, under the pivot), rusted copper throat plates down its
+//     front, furnace-orange seams glowing between the rings, a ribbed napalm hose, a
+//     copper pipe and a gauge
 //   - at the foot: a guitar-amp speaker stack with a pink neon "DRAGON" sign on top
 //     (front left), napalm drums with hazard bands and a flame decal (front right),
 //     a ripped black flag with a pink circle-A on a pole at the back right
@@ -24,7 +25,8 @@
 //     hot-pink neon mohawk of liberty spikes, an ear frill with rings and a safety
 //     pin, a stapled crack, a chrome septum ring, smoke from the nostrils, fire
 //     licking from the mouth; under it a spiked / studded leather collar with a
-//     dangling chain
+//     dangling chain, and the mohawk's run of pink fins down the back of the neck
+//     (in the head layer, so it flips with the head and never sits under the snout)
 //
 // Layering: <g id="base"> holds b-body (plate, tank, neck) and b-props (amp, sign,
 // drums, flag, chain). The head is one part whose pivot is the top of the neck:
@@ -197,7 +199,7 @@ function body(K) {
   }
   // two studded straps along the top and bottom seams: one even row of big
   // silver pyramid studs each (skipping the furnace door), a buckle at the front right
-  for (const yy of [y0 + 7, y1 - 7]) {
+  for (const yy of [y0 + 11, y1 - 7]) {
     const w = 11;
     s += `<path d="${band(TX, yy - w / 2, yy + w / 2, r + 1)}" fill="${LEATHER[2]}" stroke="${P.ink}" stroke-width="2.4"/>`;
     s += line(arcP(TX, yy - w / 2 + 1.8, r + 0.5, Math.PI * 0.97, Math.PI * 0.62, 8), LEATHER[0], 1.4, ' opacity=".8"');
@@ -222,13 +224,13 @@ function body(K) {
       `<rect y="4" width="14" height="5" fill="#152018" opacity=".55"/><rect x="4" width="5" height="14" fill="#152018" opacity=".55"/>` +
       `<rect y="11" width="14" height="1.2" fill="#f2c94c" opacity=".85"/><rect x="11" width="1.2" height="14" fill="#f2c94c" opacity=".85"/>` +
       `<rect y="1.5" width="14" height="0.8" fill="#fff" opacity=".25"/><rect x="1.5" width="0.8" height="14" fill="#fff" opacity=".25"/></pattern>`);
-    const p = strip(TX, () => r + 1.5, y0 + 15, y1 - 14, 2.42, 1.96, 5, 2);
+    const p = strip(TX, () => r + 1.5, y0 + 18, y1 - 12, 2.42, 1.96, 5, 2);
     s += poly(p, `url(#${tid})`, 2.4);
-    const inner = strip(TX, () => r + 1.6, y0 + 18, y1 - 17, 2.38, 2.0, 5, 2);
+    const inner = strip(TX, () => r + 1.6, y0 + 21, y1 - 15, 2.38, 2.0, 5, 2);
     s += `<polygon points="${pts(inner)}" fill="none" stroke="#f2e6c8" stroke-width="1.2" stroke-dasharray="2.5 2.5" opacity=".85"/>`;
-    const [px, py] = ep(TX, y0 + 18, r + 2, 2.36);
+    const [px, py] = ep(TX, y0 + 21, r + 2, 2.36);
     s += safetyPin(px - 2, py - 2, 22, 18);
-    const [qx, qy] = ep(TX, y1 - 18, r + 2, 2.02);
+    const [qx, qy] = ep(TX, y1 - 16, r + 2, 2.02);
     s += safetyPin(qx - 18, qy + 1, 20, -14);
   }
   // pink spray-paint circle-A (right front)
@@ -298,7 +300,8 @@ function ringSpike(K, y, r, aDeg, len = 22, w = 10) {
   return K.spike(x, yy, len * k, (Math.atan2(Math.sin(a) * Q, Math.cos(a)) * 180) / Math.PI, w);
 }
 
-// The neck: stacked scrap-plate rings along the spine, pink fins down its back.
+// The neck: stacked scrap-plate rings along the spine, rusted copper throat plates,
+// furnace-orange seams between the rings.
 function neck(K) {
   let s = '';
   const N = 7;
@@ -312,14 +315,8 @@ function neck(K) {
   s += K.ao(fl[0] + 4, fl[1] + 2, NECK.r0 + 14, (NECK.r0 + 14) * Q, 0.6);
   s += K.cyl({ cx: fl[0], y: fl[1] + 6, rx: NECK.r0 + 9, ry: (NECK.r0 + 9) * Q, h: 9, tones: [G[1], G[2], G[3], G[4]], top: 'flat', topTone: G[2], stroke: 3, hatch: false });
   s += K.rivets([0.3, 1.1, 1.9, 2.7].map((a) => ep(fl[0], fl[1] - 3, NECK.r0 + 5, a)), 1.8);
-  // swept-up fins on the lower neck's rear ridge, behind the rings (the top
-  // fins are in the head layer, so they flip with the head; these stay well
-  // below the jaw whichever way the head faces)
-  for (const t of [0.2, 0.36]) {
-    const p = spine(t), r = neckR(t), x = p[0] + r - 5;
-    const h = lerp(26, 22, t);
-    s += fin([x - 4, p[1] - 8], [x - 2, p[1] + 10], [x + h * 0.36, p[1] - h]);
-  }
+  // (the mohawk's run down the neck is in the head layer, so it flips with the head:
+  // see neckFins; fins drawn here would end up under the snout when it faces right)
   // rings from the bottom up
   segs.forEach((g, i) => {
     const tones = i % 3 === 1 ? [D[0], D[1], D[2], D[3]] : [G[0], G[1], G[2], G[3]];
@@ -616,14 +613,21 @@ function smoke(x, y, r, op = 0.9) {
   return `<g opacity="${op}">${s}</g>`;
 }
 
-// The top of the mohawk's run down the neck: swept-back pink fins on the back of
-// the neck under the skull. They are in the head layer so they flip with it and
-// always run down the back; their roots sit inside the neck on both facings.
+// The mohawk's run down the neck: big swept-back pink fins on a strip of spine
+// plates down the back of the neck under the collar. They are in the head layer so
+// they flip with it and always run down the back (never under the snout); the
+// strip sits at x ~297, inside the neck's silhouette on both facings (the neck's
+// right edge is at x 309-322 and its mirrored left edge at x 244-247 for y 216-266).
 function neckFins(K) {
   let s = '';
-  for (const [y, h] of [[248, 24], [231, 28], [214, 30]]) {
-    const x = 296;
-    s += fin([x - 2, y - 9], [x, y + 9], [x + h * 0.95, y - h * 0.72]);
+  const X = 297, rows = [[226, 34], [245, 31], [263, 26]];
+  // the spine strip: overlapping dark plates, a stud on each
+  for (const [y] of rows.slice().reverse()) {
+    s += poly([[X - 7, y - 9], [X + 6, y - 11], [X + 8, y + 10], [X - 5, y + 12]], D[2], 2.6) + poly([[X - 7, y - 9], [X + 6, y - 11], [X + 6.5, y - 6], [X - 6.5, y - 4]], D[0]);
+  }
+  for (const [y, h] of rows.slice().reverse()) {
+    s += fin([X - 3, y - 9], [X + 3, y + 9], [X + h * 0.9, y - h * 0.62]);
+    s += stud(X - 1, y + 4, 3, true);
   }
   return s;
 }
@@ -817,7 +821,7 @@ function head(K) {
     const q23 = lerpP(lerpP(e2, e3, 0.5), m23, 0.5);
     s += ring(q23[0] + 1, q23[1] + 6, 3.8, 5, 0, 1.9) + ring(e3[0] - 1, e3[1] + 5, 3.4, 4.4, 0, 1.8);
     const sp = lerpP(root, e1, 0.3);
-    s += safetyPin(sp[0], sp[1] + 3, 30, 4, 1.15);
+    s += safetyPin(sp[0] + 5, sp[1] + 3, 28, 4, 1.15);
     s += `<circle cx="${f(root[0])}" cy="${f(root[1])}" r="5.5" fill="${G[2]}" stroke="${P.ink}" stroke-width="2.4"/><circle cx="${f(root[0] - 1.5)}" cy="${f(root[1] - 1.5)}" r="1.6" fill="${T.rim}"/>`;
   }
   // ---- the near horn
@@ -863,15 +867,16 @@ const dragon = {
       let s = K.basePlate({ cx: CX, cy: GY, grate: false, hazard: false, led: CY, accent: PINK });
       s += K.ao(TX + 8, SKIRT.y1 + 4, SKIRT.r + 12, (SKIRT.r + 12) * Q, 0.55);
       // the flag at the back right (behind the tank); its top stays >= 20 px under
-      // the jaw when the head is mirrored to face right (the snout covers x 344-504)
-      s += flag(K, 362, 380, 268);
+      // the jaw when the head is mirrored to face right (the snout covers x 344-504),
+      // and its pole stands clear of the shoulder's right spike
+      s += flag(K, 366, 380, 274);
       s += skirt(K);
       s += body(K);
       s += furnace(K);
       // the shoulder's shadow on the leather
       const cid = K.id('c');
       K.def(`<clipPath id="${cid}"><path d="${band(TX, BODY.y0, BODY.y1, BODY.r)}"/></clipPath>`);
-      s += `<g clip-path="url(#${cid})"><ellipse cx="${f(TX + 6)}" cy="${f(SHO.y1 + SHO.r * Q + 2)}" rx="${f(SHO.r)}" ry="9" fill="${P.ink}" opacity=".55" filter="url(#soft)"/></g>`;
+      s += `<g clip-path="url(#${cid})"><ellipse cx="${f(TX + 6)}" cy="${f(SHO.y1 + SHO.r * Q)}" rx="${f(SHO.r)}" ry="5" fill="${P.ink}" opacity=".45" filter="url(#soft)"/></g>`;
       s += shoulder(K);
       s += neck(K);
       s += hoses(K);
@@ -883,8 +888,8 @@ const dragon = {
       // two swags of chain across the tank, hooked on the furnace door's frame
       // (they hang between the studded straps, so the stud rows stay clear)
       for (const [a0, a1] of [[2.95, 1.93], [1.21, 0.2]]) {
-        const p0 = ep(TX, BODY.y0 + 17, BODY.r + 2, a0), p1 = ep(TX, BODY.y0 + 17, BODY.r + 2, a1);
-        s += chain(p0, p1, 13, 7, 1.8);
+        const p0 = ep(TX, BODY.y0 + 22, BODY.r + 2, a0), p1 = ep(TX, BODY.y0 + 22, BODY.r + 2, a1);
+        s += chain(p0, p1, 11, 7, 1.8);
         for (const q of [p0, p1]) s += `<circle cx="${f(q[0])}" cy="${f(q[1])}" r="3" fill="${G[2]}" stroke="${P.ink}" stroke-width="2"/>`;
       }
       // the amp stack with the vertical neon sign on top (front left)

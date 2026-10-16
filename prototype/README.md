@@ -27,8 +27,8 @@ Balance, from bot playtests (`sim.mjs`, 3 runs per strategy):
 | All railgun, all garrison | lose at wave 7 (no anti-air) |
 | No upgrades | loses at wave 7 |
 | Mixed with a dragon instead of the garrison | wins with 10 lives (only the boss leaks) |
-| Mixed with a dragon instead of the sniper | wins with 17–19 lives |
-| Two dragons + two plasmas | wins with 5–9 lives |
+| Mixed with a dragon instead of the sniper | wins with 17–18 lives |
+| Two dragons + two plasmas | wins with 5–10 lives |
 | Three dragons, or no anti-air | loses (wave 9 / wave 7) |
 
 Source: `game.html` with placeholders; `build.py` embeds `assets/` (the map and each tower's base and head layer, exported

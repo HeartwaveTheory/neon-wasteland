@@ -36,7 +36,7 @@ canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: 
 .spell[disabled] { opacity: .75; cursor: default; }
 #info { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 3;
   max-width: min(440px, calc(100% - 180px)); background: rgba(30,27,34,.94); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--edge), 0 3px 0 var(--ink);
-  border-radius: 10px; padding: 8px 12px; font: 700 13px/1.35 var(--ui); pointer-events: none; }
+  border-radius: 10px; padding: 8px 12px; font: 700 13px/1.35 var(--ui); pointer-events: none; box-sizing: border-box; }
 #info b { font: 400 15px/1.1 var(--display); color: var(--hazard); display: block; margin-bottom: 2px; letter-spacing: .02em; }
 #info .meta { color: var(--muted); }
 /* placeInfo(): when the panel would cover the radial menu (short landscape screens), it docks beside the ring, or shows its title only */
@@ -363,7 +363,11 @@ function resize() {
   CAM.x = (MAP_W - VW / CAM.s) / 2; CAM.y = portrait ? (MAP_H - VH / CAM.s) / 2 : 0;
   if (portrait) CAM.x = HQ.x - VW / CAM.s / 2;   // start on the junction and the HQ; drag sideways to see the gates
   clampCam();
+  readHud();
 }
+// The HUD's boxes (screen px), so the radial menus stay clear of them: re-read on resize and when the fonts are in.
+let HUDR = null;
+function readHud() { const r = (q) => document.querySelector(q).getBoundingClientRect(); HUDR = { top: Math.max(r('.hud.tl').bottom, r('.hud.tr').bottom), bl: r('.hud.bl') }; }
 function clampCam() {
   CAM.s = Math.max(CAM.min, Math.min(CAM.max, CAM.s));
   const vw = VW / CAM.s, vh = VH / CAM.s;
@@ -629,7 +633,7 @@ function updateGlobs(dt) {
   for (const g of S.globs) {
     g.t += dt;
     const p = globPos(g);
-    g.trail.push([p.x, p.y]); if (g.trail.length > 9) g.trail.shift();
+    g.trail.push([p.x, p.y]); if (g.trail.length > 15) g.trail.shift();
     if (Math.random() < dt * 22) S.parts.push({ x: p.x + rand(-2, 2), y: p.y + rand(-2, 2), vx: rand(-8, 8), vy: rand(-16, -4), life: 0.6, max: 0.6, color: SMOKE, size: rand(2.5, 4), g: -16, soft: true });
     if (Math.random() < dt * 22) S.parts.push({ x: p.x, y: p.y, vx: rand(-25, 25), vy: rand(-25, 10), life: 0.35, max: 0.35, color: Math.random() < 0.5 ? '#ffb347' : '#ff4fa8', size: rand(1.4, 2.4), g: 60 });
     if (g.t >= g.dur) { g.done = true; globLand(g); }
@@ -1075,12 +1079,17 @@ function groundSprite(ext, draw, sc = 3) {
   g.scale(sc, sc); g.translate(ext, ext * SQ); draw(g);
   return { c, ox: ext, oy: ext * SQ, w, h };
 }
-// The burnt, sticky napalm puddle: a ground ellipse with irregular blobs (drawn once per patch).
+// The burnt, sticky napalm puddle: a ground ellipse with irregular blobs, solid inside with a soft rim (drawn once per patch).
 function puddleSprite(r, blobs) {
   return groundSprite(r * 1.15 + 2, (g) => {
-    g.fillStyle = 'rgb(26,10,8)'; g.beginPath(); g.ellipse(0, 0, r * 0.8, r * 0.8 * SQ, 0, 0, Math.PI * 2);
-    for (const [bx, by, br] of blobs) { g.moveTo(bx + br, by); g.ellipse(bx, by, br, br * SQ, 0, 0, Math.PI * 2); }
-    g.fill();
+    const blob = (x, y, rr) => {
+      g.save(); g.translate(x, y); g.scale(1, SQ);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, rr);
+      gr.addColorStop(0, 'rgba(26,10,8,1)'); gr.addColorStop(0.72, 'rgba(26,10,8,1)'); gr.addColorStop(1, 'rgba(26,10,8,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rr, 0, Math.PI * 2); g.fill(); g.restore();
+    };
+    blob(0, 0, r * 0.9);
+    for (const [bx, by, br] of blobs) blob(bx, by, br * 1.12);
   });
 }
 // Soot left by a patch: soft overlapping smudges in the patch's own blob shape (no hard edge), a few darker flecks.
@@ -1114,9 +1123,15 @@ function flameTongue(x, y, w, h, sway, a = 1, lw = 1.2) {
     ctx.quadraticCurveTo(x, y + ww * base, x - ww, y); ctx.closePath();
   };
   ctx.globalAlpha = a;
-  const g = ctx.createLinearGradient(0, y, 0, y - h);
-  g.addColorStop(0, '#ff9a2a'); g.addColorStop(0.36, '#ff5a2e'); g.addColorStop(0.6, '#ff3f8a'); g.addColorStop(0.72, '#ff3fa4'); g.addColorStop(1, '#ff6cc0');
-  tongue(1, 1); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(112,8,34,.6)'; ctx.stroke();
+  // one cached unit gradient (root 0 to tip -1), stretched to this tongue by the transform at fill time (the path is
+  // already built, so only the gradient moves): no new gradient per tongue per frame
+  let g = SPRITE.flameGrad;
+  if (!g) {
+    g = SPRITE.flameGrad = ctx.createLinearGradient(0, 0, 0, -1);
+    g.addColorStop(0, '#ff9a2a'); g.addColorStop(0.36, '#ff5a2e'); g.addColorStop(0.6, '#ff3f8a'); g.addColorStop(0.72, '#ff3fa4'); g.addColorStop(1, '#ff6cc0');
+  }
+  tongue(1, 1); ctx.save(); ctx.translate(x, y); ctx.scale(1, h); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(112,8,34,.6)'; ctx.stroke();
   tongue(0.56, 0.6); ctx.fillStyle = '#ffb33a'; ctx.fill();
   tongue(0.3, 0.34); ctx.fillStyle = '#fff1a8'; ctx.fill();
   ctx.globalAlpha = 1;
@@ -1127,7 +1142,7 @@ function drawPatchGround(p, fade = 1) {
   const F = fireSprites();
   const born = clamp(p.age / 0.15, 0, 1), end = clamp(p.life / 0.8, 0, 1), h = Math.min(1.3, patchHeat(p)) * fade, mh = Math.min(1, h);
   const pd = p.puddle, cool = clamp(p.age / 1.4, 0, 1), dropA = born * fade * (0.55 + 0.45 * end);
-  ctx.globalAlpha = 0.72 * born * (0.5 + 0.5 * end) * fade;
+  ctx.globalAlpha = 0.72 * born * (0.3 + 0.7 * end) * fade;   // fades as the fire dies, down to about the soot's strength
   ctx.drawImage(pd.c, p.x - pd.ox, p.y - pd.oy, pd.w, pd.h);
   const drops = (k) => { ctx.beginPath(); for (const [bx, by, br] of p.drops) { ctx.moveTo(p.x + bx + br * k, p.y + by); ctx.ellipse(p.x + bx, p.y + by, br * k, br * k * SQ, 0, 0, Math.PI * 2); } ctx.fill(); };
   ctx.globalAlpha = dropA; ctx.fillStyle = `rgb(${(255 - 165 * cool) | 0},${(150 - 128 * cool) | 0},${(60 - 44 * cool) | 0})`; drops(1);
@@ -1236,22 +1251,38 @@ function drawFx() {
     const k = p.life / p.max;
     ctx.globalAlpha = Math.min(1, k * 1.5);
     ctx.fillStyle = p.color;
-    if (p.soft) { ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.6 - k * 0.6), 0, Math.PI * 2); ctx.fill(); }
+    if (p.soft) { const r = p.size * (1.9 - k * 0.7); ctx.drawImage(softSprite(p.color), p.x - r, p.y - r, 2 * r, 2 * r); }
     else ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
   }
   ctx.globalAlpha = 1;
-  // napalm globs: a smoky ember trail, a glow, a pink-orange blob with a bright core
+  // napalm globs: a tapering pink-to-orange ribbon behind, a glow, a teardrop stretched along its flight (white-hot
+  // core, orange body, hot-pink rim and tail, a thin dark-magenta ink line)
   for (const g of S.globs) {
-    const p = globPos(g), n = g.trail.length;
-    ctx.globalCompositeOperation = 'lighter';
-    g.trail.forEach(([x, y], i) => { const q = (i + 1) / n; ctx.fillStyle = `rgba(255,${(80 + 70 * q) | 0},90,${0.4 * q})`; ctx.beginPath(); ctx.arc(x, y, 1.5 + 3.5 * q, 0, Math.PI * 2); ctx.fill(); });
-    ctx.globalCompositeOperation = 'source-over';
-    glowDot(p.x, p.y, 17, 'rgba(255,80,140,.6)');
-    const [ax, ay] = n > 1 ? g.trail[n - 2] : [g.x0, g.y0], ang = Math.atan2(p.y - ay, p.x - ax);
-    const gr = ctx.createRadialGradient(p.x - 1.5, p.y - 1.5, 0.5, p.x, p.y, 6.5);
-    gr.addColorStop(0, '#fff6c8'); gr.addColorStop(0.35, '#ffb03a'); gr.addColorStop(1, '#ff3f8a');
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, 6.6, 4.9, ang, 0, Math.PI * 2); ctx.fillStyle = gr; ctx.fill();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.stroke();
+    const p = globPos(g), tr = g.trail, n = tr.length;
+    const [ax, ay] = n > 1 ? tr[n - 2] : [g.x0, g.y0], ang = Math.atan2(p.y - ay, p.x - ax);
+    if (n > 2) {
+      const L = [], R = [];
+      for (let i = 0; i < n; i++) {
+        const [x, y] = i === n - 1 ? [p.x, p.y] : tr[i], [x0, y0] = tr[Math.max(0, i - 1)], [x1, y1] = tr[Math.min(n - 1, i + 1)];
+        const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1, w = 4 * Math.pow(i / (n - 1), 1.2);
+        L.push([x - (dy / d) * w, y + (dx / d) * w]); R.push([x + (dy / d) * w, y - (dx / d) * w]);
+      }
+      const rib = ctx.createLinearGradient(tr[0][0], tr[0][1], p.x, p.y);
+      rib.addColorStop(0, 'rgba(255,63,164,0)'); rib.addColorStop(0.4, 'rgba(240,50,150,.5)'); rib.addColorStop(0.8, 'rgba(255,110,60,.85)'); rib.addColorStop(1, 'rgba(255,170,60,.95)');
+      ctx.fillStyle = rib; ctx.beginPath();   // normal blending: an additive ribbon disappears over the bright sand
+      L.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); for (let i = n - 1; i >= 0; i--) ctx.lineTo(R[i][0], R[i][1]);
+      ctx.closePath(); ctx.fill();
+    }
+    glowDot(p.x, p.y, 18, 'rgba(255,70,150,.55)');
+    glowDot(p.x, p.y, 9, 'rgba(255,190,90,.5)');
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(8.5, 0);
+    ctx.bezierCurveTo(8.5, -3.1, 4.6, -4.5, 0, -4.5); ctx.bezierCurveTo(-5, -4.5, -9, -2.2, -14.5, 0);
+    ctx.bezierCurveTo(-9, 2.2, -5, 4.5, 0, 4.5); ctx.bezierCurveTo(4.6, 4.5, 8.5, 3.1, 8.5, 0); ctx.closePath();
+    const gr = ctx.createRadialGradient(2.6, -0.9, 0.3, 1.2, 0, 11);
+    gr.addColorStop(0, '#fffbe2'); gr.addColorStop(0.2, '#ffe07a'); gr.addColorStop(0.42, '#ff9a2a'); gr.addColorStop(0.62, '#ff5a3a'); gr.addColorStop(0.8, '#ff3fa4'); gr.addColorStop(1, '#e8288e');
+    ctx.fillStyle = gr; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#560845'; ctx.stroke();
+    ctx.restore();
   }
   ctx.textAlign = 'center';
   for (const t of S.texts) {
@@ -1298,7 +1329,10 @@ function render() {
   ctx.setTransform(DPR * CAM.s, 0, 0, DPR * CAM.s, DPR * (-CAM.x * CAM.s + rand(-sh, sh)), DPR * (-CAM.y * CAM.s + rand(-sh, sh)));
   if (IMG.map) ctx.drawImage(IMG.map, 0, 0, MAP_W, MAP_H);
   drawAmbient();
-  for (const d of S.decals) { ctx.globalAlpha = Math.min(1, d.life / 2) * 0.55; ctx.fillStyle = '#1b130c'; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * SQ, 0, 0, Math.PI * 2); ctx.fill(); }
+  for (const d of S.decals) {
+    if (d.spr) { ctx.globalAlpha = Math.min(1, d.life / 1.6); ctx.drawImage(d.spr.c, d.x - d.spr.ox, d.y - d.spr.oy, d.spr.w, d.spr.h); continue; }   // dragon soot
+    ctx.globalAlpha = Math.min(1, d.life / 2) * 0.55; ctx.fillStyle = '#1b130c'; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * SQ, 0, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.globalAlpha = 1;
   for (const d of S.decals) if (d.scorch && d.max - d.life < 1.5) glowDot(d.x, d.y, d.r, `rgba(255,90,40,${0.3 * (1 - (d.max - d.life) / 1.5)})`);   // scorch cooling down
   // dragon fire on the road: puddles and glow (flames go in the depth-sorted list), shadows of globs in flight
@@ -1328,7 +1362,6 @@ function render() {
   for (const f of S.fx) if (f.kind === 'patchOut') for (const t of f.p.tongues) list.push({ y: f.p.y + t.dy, f: () => drawPatchTongue(f.p, t, f.life / f.max) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
-  for (const p of S.patches) drawPatchLight(p);
   for (const e of S.enemies) if (e.def.air) drawEnemy(e);
   // health bars
   for (const e of S.enemies) {
@@ -1374,19 +1407,33 @@ function drawGateButtons() {
 }
 
 // ---------------------------------------------------------------- radial menu
+// Slide a menu sideways (up to maxX) so none of its buttons ([dx, dy, r] from its centre, price tag below) sits on the
+// spell buttons in the bottom-left corner.
+function clearOfSpells(x, cy, offs, maxX) {
+  const q = HUDR && HUDR.bl; if (!q) return x;
+  let need = x;
+  for (const [dx, dy, r] of offs) if (cy + dy + r + 12 > q.top - 4 && x + dx - r < q.right + 6) need = Math.max(need, q.right + 6 + r - dx);
+  return Math.min(need, maxX);
+}
 function menuButtons() {
   if (!S.sel) return [];
   const i = S.sel.pad, pad = PADS[i], tw = S.towers[i];
-  const [cx, cy0] = toScreen(pad.x, pad.y - 70);
+  const [cx, cy0] = toScreen(pad.x, pad.y - 70), top = HUDR ? HUDR.top + 6 : 50;
   if (!tw) {
     // five build buttons evenly round a bigger ring: the Dragon on top, the first four keep their old corners.
-    // The ring stays clear of the top HUD (and the TAP AGAIN label above the top button) and of the info panel
-    // (a fixed reserve for it, so the ring never jumps when the panel's text changes).
-    const R = VH < 380 ? 66 : 70, ang = { dragon: -90, plasma: -18, garrison: 54, railgun: 126, sniper: 198 };
-    const x = clamp(cx, R + 34, VW - R - 34), cy = clamp(cy0, R + 96, Math.max(R + 96, VH - 86 - R * 0.81 - 37));
-    return TOWER_KEYS.map((k) => ({ kind: 'build', tower: k, x: x + Math.cos((ang[k] * Math.PI) / 180) * R, y: cy + Math.sin((ang[k] * Math.PI) / 180) * R, r: 27, cost: TOWERS[k].cost[0], cx: x, cy, R }));
+    // The ring stays clear of the top HUD (and the TAP AGAIN label above the top button), of the spell buttons (it slides
+    // right) and of the info panel (a fixed reserve for it, so the ring never jumps when the panel's text changes;
+    // on short screens placeInfo moves the panel out of the way instead).
+    const R = VH < 380 ? 66 : 70, ang = { dragon: -90, plasma: -18, garrison: 54, railgun: 126, sniper: 198 }, r = 27;
+    const off = TOWER_KEYS.map((k) => [Math.cos((ang[k] * Math.PI) / 180) * R, Math.sin((ang[k] * Math.PI) / 180) * R, r]);
+    const lo = Math.max(R + 96, top + R + r + 16);
+    const cy = clamp(cy0, lo, Math.max(lo, VH - 86 - R * 0.81 - 37));
+    const x = clearOfSpells(clamp(cx, R + 34, VW - R - 34), cy, off, VW - R - 34);
+    return TOWER_KEYS.map((k, n) => ({ kind: 'build', tower: k, x: x + off[n][0], y: cy + off[n][1], r, cost: TOWERS[k].cost[0], cx: x, cy, R }));
   }
-  const R = 62, cy = clamp(cy0, R + 64, VH - R - 50), x = clamp(cx, R + 30, VW - R - 30);
+  const R = 62, lo = Math.max(R + 64, top + R + 25), cy = clamp(cy0, lo, Math.max(lo, VH - R - 50));
+  const off = [[0, -R, 25], [0, R, 22]]; if (tw.kind === 'garrison') off.push([-R, 0, 22]);
+  const x = clearOfSpells(clamp(cx, R + 30, VW - R - 30), cy, off, VW - R - 30);
   const def = TOWERS[tw.kind];
   const btns = [];
   btns.push({ kind: 'up', x, y: cy - R, r: 25, cost: tw.lvl < 2 ? def.cost[tw.lvl + 1] : null, cx: x, cy, R });
@@ -1643,7 +1690,7 @@ async function boot() {
   cv.addEventListener('wheel', onWheel, { passive: false });
   await Promise.all([loadImages(), document.fonts.load('400 16px Bungee'), document.fonts.load('700 12px "Chakra Petch"')].map((p) => p.catch?.(() => null) ?? p));
   makeThumbs();
-  syncHud();
+  syncHud(); readHud();
   requestAnimationFrame(frame);
 }
 boot();
@@ -1653,7 +1700,7 @@ window.__NW = {
   get S() { return S; }, PADS, PATHS, TOWERS, ENEMIES, WAVES,
   step(sec) { const n = Math.round(sec / STEP); for (let k = 0; k < n; k++) update(STEP); },
   build, upgrade, sell, setRally, startWave, castAir, castSquad, restart, tap, toWorld, toScreen, CAM,
-  NAPALM, menuButtons, makePatch, leadPoint, dragonTarget, spawnEnemy, showInfo, mouthAt, headPose,
+  NAPALM, menuButtons, makePatch, leadPoint, dragonTarget, spawnEnemy, showInfo, mouthAt, headPose, resize,
   start() { $('startScreen').hidden = true; S.paused = false; },
 };
 </script>

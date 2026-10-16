@@ -1,8 +1,9 @@
 // Dragon tower checks: fire patches burn over time, never stack, at most 3 per dragon, burn ignores armour,
 // afterburn, the lob leads its target and prefers enemies not on fire, drones and troopers are never hurt, restart
 // clears everything, 2x speed; with the real art the head faces its target and the glob leaves the mouth
-// (shots/16-dragon-aim.png); the five-button build menu on desktop and phones (shots/13-15); and a zoomed screenshot of
-// the fire (shots/12-dragon.png). Run after build.py: node dragon-test.mjs
+// (shots/16-dragon-aim.png); selling puts the fire out; the five-button build menu and the info panel on desktop, phones
+// and short landscape screens (shots/13-15, 19-21); the fire at the game's default camera (shots/17 desktop, 18 phone),
+// and a 2.3x close-up of it (shots/12-dragon.png). Run after build.py: node dragon-test.mjs
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 import { mkdirSync } from 'node:fs';
 mkdirSync('shots', { recursive: true });
@@ -79,16 +80,17 @@ const r = await p.evaluate(() => {
   fresh(); S = N.S;
   N.build(2, 'dragon'); tw = S.towers[2]; N.upgrade(2); N.upgrade(2);
   for (let k = -3; k <= 3; k++) park('raider', 'L', spot.d + k * 22, { off: (k % 2) * 0.6 });
-  let maxOwn = 0, lobs = 0, lastG = null;
+  let maxOwn = 0, lobs = 0, lastG = null; const soot = new Set();
   for (let n = 0; n < 12; n++) {
     tw.cd = 0;
     for (let s = 0; s < 42; s++) {
-      N.step(1 / 60); maxOwn = Math.max(maxOwn, own(tw).length);
+      N.step(1 / 60); maxOwn = Math.max(maxOwn, own(tw).length); for (const d of S.decals) if (d.scorch) soot.add(d);
       const g = S.globs[S.globs.length - 1]; if (g && g !== lastG) { lobs++; lastG = g; }
     }
   }
   N.step(1); maxOwn = Math.max(maxOwn, own(tw).length);
-  out.maxOwn = maxOwn; out.ownNow = own(tw).length; out.lobs = lobs; out.scorch4 = S.decals.filter((d) => d.scorch).length;
+  out.maxOwn = maxOwn; out.ownNow = own(tw).length; out.lobs = lobs; out.scorch4 = soot.size; out.sootLeft = S.decals.filter((d) => d.scorch).length;
+  out.sootSoft = [...soot].every((d) => d.spr && d.max <= 4 && d.r <= d.spr.w);
   // a second dragon gets its own 3
   N.build(0, 'dragon'); const tw2 = S.towers[0]; N.upgrade(0); N.upgrade(0);
   for (let n = 0; n < 6; n++) { tw.cd = 0; tw2.cd = 0; N.step(0.7); }
@@ -139,6 +141,24 @@ const r = await p.evaluate(() => {
   out.beforeRestart = [S.patches.length, S.globs.length, S.enemies.filter((e) => e.burnT > 0).length];
   N.restart();
   out.afterRestart = [N.S.patches.length, N.S.globs.length, N.S.enemies.length, N.S.decals.length];
+
+  // 9. selling a dragon puts out its fire (live patches and globs in flight), so sell/rebuild can't stack patches on a pad
+  fresh(); S = N.S;
+  N.build(2, 'dragon'); N.upgrade(2); N.upgrade(2); tw = S.towers[2];
+  for (let k = -3; k <= 3; k++) park('raider', 'L', spot.d + k * 22, { off: (k % 2) * 0.6 });
+  for (let n = 0; n < 3; n++) { tw.cd = 0; N.step(0.7); }
+  tw.cd = 0; stepUntil(() => S.globs.length > 0, 1);
+  const other = N.makePatch(77, spot.x + 300, spot.y, 30, 18, 50); S.patches.push(other);   // another dragon's patch stays
+  out.beforeSell = [own(tw).length, S.globs.filter((g) => g.owner === tw.id).length];
+  N.sell(2); N.step(0.7);
+  out.afterSell = [S.patches.filter((q) => q.owner === tw.id).length, S.globs.length, S.patches.includes(other) ? 1 : 0];
+  let maxPad = 0;
+  for (let n = 0; n < 4; n++) {   // sell and rebuild four times, lobbing between: never more than 3 patches from pad 2
+    N.build(2, 'dragon'); const t2 = S.towers[2];
+    for (let k = 0; k < 4; k++) { t2.cd = 0; for (let s = 0; s < 42; s++) { N.step(1 / 60); maxPad = Math.max(maxPad, S.patches.filter((q) => q.owner !== 77).length); } }
+    N.sell(2);
+  }
+  out.maxPad = maxPad;
   return out;
 });
 console.log(JSON.stringify(r));
@@ -159,7 +179,7 @@ check('burn ignores armour (Enforcer 50%)', near(r.enforcerBurn, T.burn[0], 0.3)
 check(`no stacking: ${T.burn.join(' + ')} patches burn at ${T.burn[2]}/s`, near(r.stack3, T.burn[2], 0.5), r.stack3 + '/s');
 check(`no stacking: two ${T.burn[0]}/s patches burn at ${T.burn[0]}/s`, near(r.stack2, T.burn[0], 0.3), r.stack2 + '/s');
 check('max 3 live patches per dragon', r.maxOwn === 3 && r.ownNow === 3 && r.lobs >= 10, `max ${r.maxOwn}, now ${r.ownNow}, lobs ${r.lobs}`);
-check('put-out patches leave scorch marks (they fade after 6 s)', r.scorch4 >= 6, r.scorch4);
+check('every put-out patch leaves a soft scorch mark (gone after 3.5 s)', r.scorch4 >= r.lobs - 3 && r.sootSoft, `${r.scorch4} marks for ${r.lobs} lobs, ${r.sootLeft} still showing`);
 check('each dragon keeps its own 3', r.twoDragons[0] === 3 && r.twoDragons[1] === 3 && r.twoDragons[2] === 6, r.twoDragons.join('/'));
 check('the dragon never lobs at a drone', r.droneOnlyLobs === 0, r.droneOnlyLobs);
 check('drones are not hurt by fire', r.droneHurt === 0 && !r.droneBurning, r.droneHurt);
@@ -168,6 +188,8 @@ check('garrison troopers in the fire are not hurt', !r.troopersHurt && r.trooper
 check('the lob leads a walking enemy', r.leadMiss < 4 && r.walkerInFire, `lands ${r.leadMiss} from it`);
 check('prefers an enemy not on fire', r.prefers === 'unburnt' && r.plain === 'closest to HQ', `${r.prefers}, ${r.plain}`);
 check('fire kills pay the bounty', r.killGold > 0 && r.kills === 1, `+${r.killGold}`);
+check('selling a dragon puts out its patches and globs', r.beforeSell[0] === 3 && r.beforeSell[1] === 1 && r.afterSell[0] === 0 && r.afterSell[1] === 0 && r.afterSell[2] === 1, `${r.beforeSell} -> ${r.afterSell}`);
+check('sell/rebuild never leaves more than 3 patches on a pad', r.maxPad === 3, 'max ' + r.maxPad);
 check('restart clears patches, globs and burning', r.beforeRestart[0] > 0 && r.afterRestart.every((n) => n === 0), `${r.beforeRestart} -> ${r.afterRestart}`);
 
 // ------------------------------------------------------------------ 2x speed in the real game loop
@@ -247,31 +269,66 @@ await p.evaluate(() => {
 await p.waitForTimeout(300);
 const scene = await p.evaluate(() => { const S = window.__NW.S; return { patches: S.patches.length, globs: S.globs.length, burning: S.enemies.filter((e) => e.burnT > 0).length, alive: S.enemies.length }; });
 check('screenshot scene: patches burning with enemies in them', scene.patches >= 2 && scene.burning >= 2, JSON.stringify(scene));
-await p.screenshot({ path: 'shots/12-dragon.png' });
+await p.screenshot({ path: 'shots/12-dragon.png' });   // close-up (2.3x is above the game's max zoom): judge the effects from 17 and 18
+
+// ------------------------------------------------------------------ the fire at the default camera (what players see)
+// 1280x720 (CAM 0.77) and an 844x390 phone at 3x (CAM 0.50): a level 3 dragon on pad 0 and pad 2, a column of enemies, a glob in flight
+const fireScene = async (q) => q.evaluate(() => {
+  const N = window.__NW; N.start(); fresh(); N.resize(); const S = N.S;   // start(): close the title screen on a newly opened page
+  N.build(0, 'dragon'); N.upgrade(0); N.upgrade(0); N.build(2, 'dragon'); N.upgrade(2);
+  N.build(1, 'plasma'); N.build(3, 'sniper');
+  const add = (t, d, off) => park(t, 'L', d, { speed: N.ENEMIES[t].speed, hp: N.ENEMIES[t].hp * 8, off });
+  add('raider', 470, -0.5); add('enforcer', 440, 0.4); add('raider', 410, 0.7); add('scout', 385, -0.6); add('raider', 352, 0.1);
+  add('enforcer', 322, -0.3); add('raider', 290, 0.5); add('raider', 262, -0.7); add('raider', 230, 0.2); add('drone', 400, 0);
+  N.step(5.5);
+  for (let k = 0; k < 300 && !(S.globs.length && S.globs[0].t > 0.3); k++) N.step(1 / 60);
+  return { cam: +N.CAM.s.toFixed(2), patches: S.patches.length, globs: S.globs.length, burning: S.enemies.filter((e) => e.burnT > 0).length };
+});
+{
+  const s1 = await fireScene(p); await p.waitForTimeout(250); await p.screenshot({ path: 'shots/17-dragon-desktop.png' });
+  check('default-camera shot (1280x720): patches and a glob in flight', s1.patches >= 2 && s1.globs >= 1 && Math.abs(s1.cam - 0.77) < 0.02, JSON.stringify(s1));
+  const ph = await open(844, 390, true);
+  const s2 = await fireScene(ph); await ph.waitForTimeout(250); await ph.screenshot({ path: 'shots/18-dragon-phone.png' });
+  check('default-camera shot (844x390 @3x): patches and a glob in flight', s2.patches >= 2 && s2.globs >= 1 && Math.abs(s2.cam - 0.5) < 0.02, JSON.stringify(s2));
+}
 
 // ------------------------------------------------------------------ build menu: five buttons, every pad, phones
-for (const [w, h, touch, shot] of [[1280, 720, false, '15-menu-desktop'], [844, 390, true, '13-menu-phone'], [640, 360, true, ''], [390, 844, true, '14-menu-portrait']]) {
+// Short landscape screens (Chrome on Android with its address bar is about 300 px tall) and portrait phones included.
+// On every pad, before a pick, with each pick, and on a built tower's menu: buttons on screen, apart, not under the HUD
+// or the info panel; and the info panel never covers the HUD (the SQUAD button in portrait).
+for (const [w, h, touch, shot] of [[1280, 720, false, '15-menu-desktop'], [844, 390, true, '13-menu-phone'], [640, 360, true, ''], [740, 300, true, '19-menu-short'],
+  [740, 320, true, ''], [568, 320, true, '20-menu-568'], [390, 844, true, '14-menu-portrait'], [360, 640, true, '21-menu-360']]) {
   const q = shot || touch || w !== 1280 ? await open(w, h, touch) : p;
   const res = await q.evaluate(() => {
     const N = window.__NW; fresh(); N.start(); N.S.paused = true;
-    const rects = ['.hud.tl', '.hud.tr', '.hud.bl', '#info'].map((s) => document.querySelector(s)).map((el) => el.getBoundingClientRect());
+    const hud = ['.hud.tl', '.hud.tr', '.hud.bl'].map((s) => document.querySelector(s).getBoundingClientRect());
     const VW = innerWidth, VH = innerHeight, bad = [];
+    const over = (a, R) => R.width && a.l < R.right && a.r > R.left && a.t < R.bottom && a.b > R.top;
     for (let i = 0; i < N.PADS.length; i++) {
-      N.S.sel = { pad: i, pick: 'dragon' }; N.showInfo();
-      const info = document.getElementById('info').getBoundingClientRect();
-      const B = N.menuButtons();
-      if (B.length !== 5) bad.push(`pad ${i}: ${B.length} buttons`);
-      for (const b of B) {
-        const box = { l: b.x - b.r, r: b.x + b.r, t: b.y - b.r - (b.tower === 'dragon' ? 16 : 0), b: b.y + b.r + 10 };
-        if (box.l < 0 || box.r > VW || box.t < 0 || box.b > VH) bad.push(`pad ${i} ${b.tower} off screen`);
-        for (const [k, R] of [...rects.slice(0, 3), info].entries()) if (R.width && box.l < R.right && box.r > R.left && box.t < R.bottom && box.b > R.top) bad.push(`pad ${i} ${b.tower} under ${['hud-tl', 'hud-tr', 'spells', 'info'][k]}`);
-        for (const o of B) if (o !== b && Math.hypot(o.x - b.x, o.y - b.y) < 2 * b.r + 12) bad.push(`pad ${i} ${b.tower}/${o.tower} too close`);
+      for (const pick of [null, 'dragon', 'sniper', 'railgun', 'garrison', 'built']) {
+        N.S.towers[i] = null;
+        if (pick === 'built') { N.build(i, 'dragon'); N.S.sel = { pad: i, pick: null }; } else N.S.sel = { pad: i, pick };
+        N.showInfo();
+        const info = document.getElementById('info').getBoundingClientRect();
+        const B = N.menuButtons(), tag = `pad ${i} ${pick || 'none'}`;
+        if (pick !== 'built' && B.length !== 5) bad.push(`${tag}: ${B.length} buttons`);
+        for (const b of B) {
+          const name = b.tower || b.kind;
+          const box = { l: b.x - b.r, r: b.x + b.r, t: b.y - b.r - (b.tower === pick || b.tower === 'dragon' ? 16 : 0), b: b.y + b.r + (b.cost != null ? 10 : 0) };
+          if (box.l < 0 || box.r > VW || box.t < 0 || box.b > VH) bad.push(`${tag} ${name} off screen`);
+          for (const [k, R] of [...hud, info].entries()) if (over(box, R)) bad.push(`${tag} ${name} under ${['hud-tl', 'hud-tr', 'spells', 'info'][k]}`);
+          for (const o of B) if (o !== b && Math.hypot(o.x - b.x, o.y - b.y) < 2 * b.r + 12) bad.push(`${tag} ${name}/${o.tower || o.kind} too close`);
+        }
+        const ib = { l: info.left, r: info.right, t: info.top, b: info.bottom };
+        for (const [k, R] of hud.entries()) if (info.width && over(ib, R)) bad.push(`${tag} info covers ${['hud-tl', 'hud-tr', 'spells'][k]}`);
+        if (info.width && (info.left < 0 || info.right > VW || info.top < 0 || info.bottom > VH)) bad.push(`${tag} info off screen`);
       }
+      N.S.towers[i] = null;
     }
     N.S.sel = null; N.showInfo();
     return bad;
   });
-  check(`menu ${w}x${h}: 5 buttons on screen, apart, clear of the HUD on every pad`, res.length === 0, res.slice(0, 4).join('; '));
+  check(`menu ${w}x${h}: buttons on screen, apart, clear of the HUD and the info panel on every pad`, res.length === 0, res.slice(0, 4).join('; ') + (res.length > 4 ? ` (+${res.length - 4})` : ''));
   if (shot) {
     // real taps: open pad 2, pick the dragon, tap again to build
     const tapAt = async (x, y) => { if (touch) await q.touchscreen.tap(x, y); else await q.mouse.click(x, y); await q.waitForTimeout(80); };

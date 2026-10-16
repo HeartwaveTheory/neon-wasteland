@@ -26,7 +26,7 @@ copyFileSync(existsSync(NEWMAP) ? NEWMAP : path.join(HERE, '..', 'ref', 'map.png
 export const PADS = [[458, 162, 80, 40], [1025, 218, 90, 48], [548, 345, 92, 47], [1197, 362, 92, 47]];
 const GAME_SCALE = 0.5; // sprite px -> map px (footprint rx 150 -> 75 on a ~90 pad)
 
-const FAMILIES = ['sniper', 'plasma', 'railgun', 'garrison'];
+const FAMILIES = ['sniper', 'plasma', 'railgun', 'garrison', 'dragon'];
 const towers = [];
 for (const fn of readdirSync(path.join(HERE, 'towers')).filter((f) => f.endsWith('.mjs')).sort()) {
   const m = await import(path.join(HERE, 'towers', fn) + `?t=${Date.now()}`);
@@ -95,7 +95,7 @@ if (wantSheet) {
     .cell{display:flex;flex-direction:column;align-items:center}.cell img{display:block;margin:0 -20px}
     .name{font:400 46px Bungee,sans-serif;color:#8ff4ff;text-shadow:0 0 14px #3ff0ff,0 0 2px #fff;letter-spacing:.04em;margin-top:-6px}</style></head>
     <body><div class="wrap">${cells}</div></body></html>`);
-  await page.setViewportSize({ width: 2000, height: 700 });
+  await page.setViewportSize({ width: 2600, height: 700 });
   await page.goto('file://' + path.join(OUT, '_lineup.html'));
   await page.evaluate(() => document.fonts.ready);
   await (await page.$('.wrap')).screenshot({ path: path.join(OUT, 'lineup.png') });
