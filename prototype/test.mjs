@@ -28,9 +28,7 @@ if (mode === 'ui') {
   await p.screenshot({ path: 'shots/02-menu.png' });
   const btns = await p.evaluate(() => { const S = window.__NW.S; return null; });
   // the build buttons: read positions from the game's menu logic via a tap on the first (sniper)
-  const pos = await p.evaluate(() => { const pad = window.__NW.PADS[0]; const [cx, cy] = window.__NW.toScreen(pad.x, pad.y - 70); return [cx, cy]; });
-  const R = 62, a = (-135 * Math.PI) / 180;
-  const bx = Math.max(R + 30, pos[0]) + Math.cos(a) * R, by = Math.max(R + 40, pos[1]) + Math.sin(a) * R;
+  const [bx, by] = await p.evaluate(() => { const b = window.__NW.menuButtons().find((m) => m.tower === 'sniper'); return [b.x, b.y]; });
   await p.mouse.click(bx, by); await p.waitForTimeout(60);
   await p.screenshot({ path: 'shots/03-picked.png' });
   await p.mouse.click(bx, by); await p.waitForTimeout(200);

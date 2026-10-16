@@ -39,6 +39,11 @@ canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: 
   border-radius: 10px; padding: 8px 12px; font: 700 13px/1.35 var(--ui); pointer-events: none; }
 #info b { font: 400 15px/1.1 var(--display); color: var(--hazard); display: block; margin-bottom: 2px; letter-spacing: .02em; }
 #info .meta { color: var(--muted); }
+/* placeInfo(): when the panel would cover the radial menu (short landscape screens), it docks beside the ring, or shows its title only */
+#info.dock-r { left: auto; right: calc(8px + env(safe-area-inset-right, 0px)); transform: none; }
+#info.dock-l { left: calc(8px + env(safe-area-inset-left, 0px)); right: auto; transform: none; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+#info.compact .txt { display: none; }
+#info.compact b { margin-bottom: 0; }
 #toast { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 3; pointer-events: none;
   font: 400 clamp(18px, 3.4vw, 30px)/1 var(--display); color: var(--hazard); text-shadow: 3px 3px 0 var(--ink), 0 0 18px rgba(255,210,58,.5);
   white-space: nowrap; transition: opacity .3s; }
@@ -66,7 +71,9 @@ canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: 
   .chip .lbl { display: none; }
   .btn { min-width: 36px; height: 36px; padding: 0 7px; font-size: 13px; }
   .spell { width: 54px; height: 54px; font-size: 9px; }
-  #info { max-width: calc(100% - 140px); font-size: 12px; }
+  /* anchored right, so it never covers the spell buttons on the left */
+  #info { left: auto; right: calc(8px + env(safe-area-inset-right, 0px)); transform: none; max-width: calc(100% - 140px); font-size: 12px; }
+  #info.dock-l { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
 </style>
@@ -104,7 +111,7 @@ canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; display: 
         <li><i>✥</i><span>Drag to look around, pinch or scroll to zoom.</span></li>
       </ul>
       <button class="btn big" id="btnPlay">PLAY</button>
-      <p class="note">Prototype · 10 waves · 4 towers · turn your phone sideways to see the whole map</p>
+      <p class="note">Prototype · 10 waves · 5 towers · turn your phone sideways to see the whole map</p>
     </div>
   </div>
   <div class="overlay" id="pauseScreen" hidden>
@@ -129,6 +136,7 @@ const ASSET = {
   plasma_base: '__PLASMA_BASE__', plasma_head: '__PLASMA_HEAD__',
   railgun_base: '__RAILGUN_BASE__', railgun_head: '__RAILGUN_HEAD__',
   garrison_base: '__GARRISON_BASE__', garrison_head: '__GARRISON_HEAD__',
+  dragon_base: '__DRAGON_BASE__', dragon_head: '__DRAGON_HEAD__',
   unit_raider: '__UNIT_RAIDER__', unit_scout: '__UNIT_SCOUT__', unit_enforcer: '__UNIT_ENFORCER__', unit_mech: '__UNIT_MECH__',
   unit_drone: '__UNIT_DRONE__', unit_trooper: '__UNIT_TROOPER__', unit_merc: '__UNIT_MERC__',
 };
@@ -215,8 +223,17 @@ const TOWERS = {
     respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers hold the road near their rally point and never leave the tower\'s range. Tap Rally to move them.',
     head: { pivot: [256, 162], muzzle: [178, 429], faces: 0 },
   },
+  dragon: {
+    name: 'Dragon', cost: [110, 150, 210], range: [210, 225, 240], dmg: [10, 16, 24], rate: [2.4, 2.2, 2.0], air: false,
+    patchR: [30, 36, 42], patchLife: [4, 5, 6], burn: [18, 26, 36],   // burn per second (spec started at 12/18/26; tuned with sim.mjs)
+    dtype: 'fire', glow: '#ff3fa4', blurb: 'Spits napalm that sets the road on fire for a few seconds. Fire burns through armour. Ground only.',
+    // from towers2/towers/dragon.mjs: the pivot is the top of the neck, the muzzle is the mouth (the head faces left, like the railgun)
+    head: { pivot: [272, 176], muzzle: [110.5, 194.8], faces: -1 },
+  },
 };
-const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison'];
+const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison', 'dragon'];
+// Dragon napalm: the glob's flight time, live patches per dragon, afterburn (seconds, share of the patch's rate).
+const NAPALM = { flight: 0.6, maxPatches: 3, after: 1, afterK: 0.5 };
 
 // ---------------------------------------------------------------- enemies
 const ENEMIES = {
@@ -252,8 +269,9 @@ function newState() {
   return {
     t: 0, gold: START_GOLD, lives: START_LIVES, wave: 0, started: false, over: false, won: false,
     nextIn: 0, spawning: [], towers: PADS.map(() => null), enemies: [], troops: [], fx: [], parts: [], texts: [], decals: [],
+    globs: [], patches: [],   // dragon napalm in flight, fire patches on the road
     cd: { air: 0, squad: 0 }, aiming: null, sel: null, shake: 0, flash: 0, speed: 1, paused: false, uid: 1,
-    stats: { kills: 0, leaked: 0, built: 0 },
+    stats: { kills: 0, leaked: 0, built: 0, dmg: {} },
   };
 }
 
@@ -311,6 +329,8 @@ function sfx(name) {
     case 'zap': tone('sawtooth', 900, 2400, 0.08, 0.08); noise(0.14, 0.18, 4500, 2); tone('square', 1300, 500, 0.12, 0.05, 0.03); break;
     case 'charge': tone('sine', 200, 1100, 0.35, 0.08); break;
     case 'rail': noise(0.35, 0.5, 700, 0.5); tone('sawtooth', 140, 40, 0.4, 0.25); tone('sine', 1600, 300, 0.2, 0.08); break;
+    case 'spit': noise(0.22, 0.34, 650, 0.6); tone('sawtooth', 260, 70, 0.2, 0.1); noise(0.14, 0.2, 2600, 1.4, 0.04); break;
+    case 'sizzle': noise(0.6, 0.2, 5200, 0.6, 0, 'highpass'); noise(0.2, 0.34, 380, 0.7); tone('sine', 150, 45, 0.26, 0.15); break;
     case 'clang': noise(0.06, 0.25, 3200, 3); tone('triangle', 620, 420, 0.08, 0.06); break;
     case 'boom': noise(0.6, 0.7, 300, 0.4); tone('sine', 110, 30, 0.6, 0.45); break;
     case 'coin': tone('square', 1320, 1320, 0.05, 0.05); tone('square', 1760, 1760, 0.07, 0.05, 0.05); break;
@@ -411,6 +431,12 @@ function sell(i) {
   S.gold += refund;
   if (tw.troops) for (const tr of tw.troops) releaseTrooper(tr);
   S.troops = S.troops.filter((t) => t.tower !== tw);
+  if (tw.kind === 'dragon') {   // its fire goes with it: patches sink out, globs in flight fizzle (no sell/rebuild past the 3-patch cap)
+    for (const p of S.patches) if (p.owner === tw.id) endPatch(p, true);
+    S.patches = S.patches.filter((p) => !p.out);
+    for (const g of S.globs) if (g.owner === tw.id) { const q = globPos(g); smokePuff(q.x, q.y, 3, 0.7); }
+    S.globs = S.globs.filter((g) => g.owner !== tw.id);
+  }
   S.towers[i] = null;
   floatText(PADS[i].x, PADS[i].y - 60, '+' + refund, '#ffd23a'); sfx('coin');
   burst(PADS[i].x, PADS[i].y - 30, '#d9c9a8', 20, 100, 4, 0.6, 30);
@@ -439,12 +465,16 @@ function pickTarget(tw, range, air) {
   }
   return best;
 }
-function damage(e, amt, type) {
+// type: 'phys' (armour counts), 'pierce' (half), anything else ignores armour; 'burn' ticks don't flash the unit.
+// src: who dealt it (S.stats.dmg, for the bot playtests).
+function damage(e, amt, type, src) {
   if (e.dead) return;
   let a = amt;
   if (type === 'phys') a *= 1 - e.def.armor;
   else if (type === 'pierce') a *= 1 - e.def.armor * 0.5;
-  e.hp -= a; e.hit = 0.12;
+  if (src) S.stats.dmg[src] = (S.stats.dmg[src] || 0) + Math.min(a, Math.max(0, e.hp));
+  e.hp -= a;
+  if (type !== 'burn') e.hit = 0.12;
   if (e.hp <= 0) kill(e);
 }
 function kill(e) {
@@ -474,13 +504,14 @@ function updateTower(tw, dt) {
     return;
   }
   if (tw.cd > 0) return;
-  const tg = pickTarget(tw, range, def.air);
+  const tg = tw.kind === 'dragon' ? dragonTarget(tw, range) : pickTarget(tw, range, def.air);
   if (!tg) return;
   tw.aim = tg; tw.cd = def.rate[tw.lvl];
   if (def.head.faces) tw.flip = (tg.x < pad.x ? -1 : 1) * def.head.faces;
   if (tw.kind === 'sniper') fireSniper(tw, tg);
   else if (tw.kind === 'plasma') firePlasma(tw, tg);
   else if (tw.kind === 'railgun') { tw.charge = 0.45; tw.aimPt = { x: tg.x, y: tg.y }; sfx('charge'); }
+  else if (tw.kind === 'dragon') fireDragon(tw, tg);
 }
 function muzzle(tw) {
   const def = TOWERS[tw.kind], pad = PADS[tw.i];
@@ -497,7 +528,7 @@ function fireSniper(tw, tg) {
   burst(tg.x, ty, '#ffd8c8', 5, 70, 2.2, 0.25);
   if (crit) floatText(tg.x, ty - 20, 'HEADSHOT', '#ff4fd8');
   tw.recoil = 1; sfx('sniper');
-  damage(tg, dmg, 'phys');
+  damage(tg, dmg, 'phys', 'sniper');
 }
 function firePlasma(tw, tg) {
   const def = TOWERS.plasma;
@@ -517,7 +548,7 @@ function firePlasma(tw, tg) {
     const ey = aimY(e);
     S.fx.push({ kind: 'bolt', x1: px, y1: py, x2: e.x, y2: ey, life: 0.16, max: 0.16, seed: Math.random() * 1000 });
     burst(e.x, ey, '#7ff6ff', 4, 60, 2.4, 0.25);
-    damage(e, def.dmg[tw.lvl], 'energy');
+    damage(e, def.dmg[tw.lvl], 'energy', 'plasma');
     px = e.x; py = ey;
   }
   tw.pulse = 1; sfx('zap');
@@ -535,7 +566,7 @@ function fireRail(tw) {
     const vx = ex - pad.x, vy = ey - pad.y, L2 = vx * vx + vy * vy;
     const t = clamp(((e.x - pad.x) * vx + (e.y - pad.y) * vy) / L2, 0, 1);
     const qx = pad.x + vx * t, qy = pad.y + vy * t;
-    if (t > 0.08 && Math.hypot(e.x - qx, e.y - qy) < 28 * (e.def.boss ? 1.6 : 1)) damage(e, def.dmg[tw.lvl], 'pierce');
+    if (t > 0.08 && Math.hypot(e.x - qx, e.y - qy) < 28 * (e.def.boss ? 1.6 : 1)) damage(e, def.dmg[tw.lvl], 'pierce', 'railgun');
   }
   const [mx, my] = muzzle(tw);
   S.fx.push({ kind: 'rail', x1: mx, y1: my, x2: ex, y2: ey - 14, life: 0.32, max: 0.32 });
@@ -543,6 +574,137 @@ function fireRail(tw) {
   burst(mx, my, '#ffb35a', 14, 120, 3, 0.4);
   tw.recoil = 1; S.shake = Math.max(S.shake, 0.18); sfx('rail');
   tw.cd = def.rate[tw.lvl];
+}
+
+// ---------------------------------------------------------------- dragon: napalm lobs and fire patches
+// Where a ground enemy will stand `t` seconds from now (it keeps walking its route unless something holds it).
+function leadPoint(e, t) {
+  const path = PATHS[e.path];
+  const d = Math.min(path.len - 1, e.d + (e.blockedNow ? 0 : e.def.speed * t));
+  const p = pathAt(path, d), off = e.off * roomAt(path, d);
+  return { x: p.x - p.dy * off, y: p.y + p.dx * off };
+}
+// The patch burning at (x, y). Patches never stack: only the strongest one counts.
+function patchAt(x, y, boss) {
+  let best = null;
+  for (const p of S.patches) if (edist(p.x, p.y, x, y) <= p.r + (boss ? 12 : 0) && (!best || p.dps > best.dps)) best = p;
+  return best;
+}
+// Like the other towers (closest to the HQ, in range, ground only), but prefer an enemy whose spot is not on fire yet
+// (and not about to be: globs in flight count), so the patches spread out.
+function dragonTarget(tw, range) {
+  const pad = PADS[tw.i];
+  let best = null, bestRem = Infinity, any = null, anyRem = Infinity;
+  for (const e of S.enemies) {
+    if (e.dead || e.def.air || edist(pad.x, pad.y, e.x, e.y) > range) continue;
+    const rem = PATHS[e.path].len - e.d;
+    if (rem < anyRem) { anyRem = rem; any = e; }
+    if (rem >= bestRem) continue;
+    const lp = leadPoint(e, NAPALM.flight);
+    const covered = patchAt(e.x, e.y) || patchAt(lp.x, lp.y) || S.globs.some((g) => edist(g.x1, g.y1, lp.x, lp.y) < g.r);
+    if (!covered) { bestRem = rem; best = e; }
+  }
+  return best || any;
+}
+function fireDragon(tw, tg) {
+  const def = TOWERS.dragon, pad = PADS[tw.i], L = tw.lvl;
+  const lp = leadPoint(tg, NAPALM.flight);          // lob to where the target will be when the glob lands
+  tw.recoil = 1;                                     // rear up and spit
+  const [mx, my] = mouthAt(tw);
+  const dist = Math.hypot(lp.x - mx, lp.y - my);
+  S.globs.push({ owner: tw.id, x0: mx, y0: my, g0: pad.y - 6, x1: lp.x, y1: lp.y, t: 0, dur: NAPALM.flight, arc: 40 + dist * 0.3,
+    r: def.patchR[L], dmg: def.dmg[L], dps: def.burn[L], life: def.patchLife[L], trail: [] });
+  S.fx.push({ kind: 'flash', x: mx, y: my, r: 18 * TS + 6, life: 0.16, max: 0.16, color: '#ff6a3a' });
+  burst(mx, my, '#ffb347', 6, 60, 2.4, 0.3, 20); burst(mx, my, '#ff3fa4', 4, 50, 2.2, 0.3, 20);
+  sfx('spit');
+}
+// Glob in flight: ground point below it, its height, and where it shows on screen.
+function globPos(g) {
+  const u = clamp(g.t / g.dur, 0, 1);
+  const gx = g.x0 + (g.x1 - g.x0) * u, gy = g.g0 + (g.y1 - g.g0) * u;
+  const z = (g.g0 - g.y0) * (1 - u) + g.arc * 4 * u * (1 - u);
+  return { x: gx, y: gy - z, gx, gy, z, u };
+}
+function updateGlobs(dt) {
+  for (const g of S.globs) {
+    g.t += dt;
+    const p = globPos(g);
+    g.trail.push([p.x, p.y]); if (g.trail.length > 9) g.trail.shift();
+    if (Math.random() < dt * 22) S.parts.push({ x: p.x + rand(-2, 2), y: p.y + rand(-2, 2), vx: rand(-8, 8), vy: rand(-16, -4), life: 0.6, max: 0.6, color: SMOKE, size: rand(2.5, 4), g: -16, soft: true });
+    if (Math.random() < dt * 22) S.parts.push({ x: p.x, y: p.y, vx: rand(-25, 25), vy: rand(-25, 10), life: 0.35, max: 0.35, color: Math.random() < 0.5 ? '#ffb347' : '#ff4fa8', size: rand(1.4, 2.4), g: 60 });
+    if (g.t >= g.dur) { g.done = true; globLand(g); }
+  }
+  S.globs = S.globs.filter((g) => !g.done);
+}
+function globLand(g) {
+  const { x1: x, y1: y } = g;
+  for (const e of S.enemies) if (!e.dead && !e.def.air && edist(x, y, e.x, e.y) <= g.r + (e.def.boss ? 12 : 0)) damage(e, g.dmg, 'fire', 'dragon');
+  // each dragon keeps at most 3 live patches: a 4th puts out its oldest
+  const own = S.patches.filter((p) => p.owner === g.owner);
+  while (own.length >= NAPALM.maxPatches) endPatch(own.shift(), true);
+  S.patches = S.patches.filter((p) => !p.out);
+  S.patches.push(makePatch(g.owner, x, y, g.r, g.dps, g.life));
+  S.fx.push({ kind: 'splash', x, y, r: g.r, life: 0.42, max: 0.42 });
+  burst(x, y - 4, '#ff8a2a', 14, 130, 3.2, 0.5, 70);
+  burst(x, y - 4, '#ff3fa4', 8, 110, 2.8, 0.45, 70);
+  burst(x, y - 6, '#ffe27a', 6, 70, 2.4, 0.35, 50);
+  sfx('sizzle');
+}
+function makePatch(owner, x, y, r, dps, life) {
+  // flame tongues: clustered round 2-3 hot spots (big in the middle of a cluster, smaller at its edge), plus a few low
+  // stragglers out on the puddle; every tongue has its own size and lean. Drawn back to front with the units.
+  const nh = Math.random() < 0.5 ? 2 : 3, a0 = rand(0, Math.PI * 2), hot = [];
+  for (let k = 0; k < nh; k++) { const a = a0 + (k / nh) * Math.PI * 2 + rand(-0.4, 0.4), q = rand(0.22, 0.46) * r; hot.push([Math.cos(a) * q, Math.sin(a) * q * SQ]); }
+  const n = Math.round(6 + r / 5), stray = r > 36 ? 3 : 2, tongues = [];
+  for (let k = 0; k < n; k++) {
+    let dx, dy, s;
+    if (k < n - stray) {
+      const [hx, hy] = hot[k % nh], a = rand(0, Math.PI * 2), u = Math.sqrt(Math.random()), q = u * r * 0.3;
+      dx = hx + Math.cos(a) * q; dy = hy + Math.sin(a) * q * SQ; s = 1.2 - 0.55 * u + rand(-0.12, 0.08);
+    } else { const a = rand(0, Math.PI * 2), q = rand(0.55, 0.82) * r; dx = Math.cos(a) * q; dy = Math.sin(a) * q * SQ; s = rand(0.45, 0.65); }
+    tongues.push({ dx, dy, s: clamp(s, 0.45, 1.2), ln: rand(-0.3, 0.3), ph: rand(0, 6.3), f: rand(7, 11) });
+  }
+  const blobs = [], drops = [], coals = [];
+  for (let k = 0; k < 6; k++) { const a = rand(0, Math.PI * 2), q = rand(0.2, 0.5) * r; blobs.push([Math.cos(a) * q, Math.sin(a) * q * SQ, r * rand(0.4, 0.62)]); }
+  for (let k = 0; k < 8; k++) { const a = rand(0, Math.PI * 2), q = rand(0.95, 1.25) * r; drops.push([Math.cos(a) * q, Math.sin(a) * q * SQ, rand(0.9, 1.9)]); }
+  for (let k = 0; k < 9; k++) { const a = rand(0, Math.PI * 2), q = Math.sqrt(Math.random()) * r * 0.85; coals.push([Math.cos(a) * q, Math.sin(a) * q * SQ, rand(0, 6.3), rand(1, 2)]); }
+  return { id: S.uid++, owner, x, y, r, dps, life, max: life, age: 0, tongues, blobs, drops, coals, puddle: puddleSprite(r, blobs) };
+}
+function endPatch(p, early) {
+  p.out = true;
+  S.decals.push({ x: p.x, y: p.y, life: 3.5, max: 3.5, r: p.r * 0.75, scorch: true, spr: scorchSprite(p) });
+  if (early) S.fx.push({ kind: 'patchOut', p, life: 0.4, max: 0.4 });   // the flames sink instead of popping out
+  smokePuff(p.x, p.y - 8, 4, 1.1, p.r * 0.5);
+}
+// Smoke: soft warm-grey puffs that rise and spread (drawn with a cached soft sprite, see drawFx).
+const SMOKE = 'rgba(112,88,82,.42)';
+function smokePuff(x, y, n, life = 1.1, spread = 6) {
+  for (let k = 0; k < n; k++) S.parts.push({ x: x + rand(-spread, spread), y: y + rand(-2, 2), vx: rand(-10, 10), vy: rand(-30, -14), life: rand(life * 0.75, life), max: life, color: SMOKE, size: rand(4, 7), g: -6, soft: true });
+}
+// Flame height: flares up when the patch lands, dies down over its last 0.8 s.
+function patchHeat(p) { return clamp(p.age / 0.2, 0, 1) * clamp(p.life / 0.8, 0, 1) * (1 + 0.6 * Math.max(0, 1 - p.age / 0.6)); }
+function updatePatches(dt) {
+  for (const p of S.patches) {
+    p.age += dt; p.life -= dt;
+    if (p.life <= 0) { endPatch(p, false); continue; }
+    const h = patchHeat(p);
+    if (Math.random() < dt * (5 + p.r / 5) * h) {   // embers rising
+      const a = rand(0, Math.PI * 2), q = Math.sqrt(Math.random()) * p.r * 0.8;
+      S.parts.push({ x: p.x + Math.cos(a) * q, y: p.y + Math.sin(a) * q * SQ - 6, vx: rand(-8, 8), vy: rand(-55, -25), life: rand(0.6, 1.1), max: 1.1, color: ['#ffd27a', '#ff8a2a', '#ff4fa8'][Math.floor(Math.random() * 3)], size: rand(1.2, 2.4), g: -12 });
+    }
+    if (Math.random() < dt * 1.6 * h) S.parts.push({ x: p.x + rand(-p.r, p.r) * 0.5, y: p.y - 18, vx: rand(-6, 6), vy: rand(-26, -14), life: 1.3, max: 1.3, color: SMOKE, size: rand(4, 7), g: -6, soft: true });
+  }
+  S.patches = S.patches.filter((p) => !p.out);
+  // burn: a ground enemy burns from the strongest patch it stands in, and for a moment after it leaves (afterburn)
+  for (const e of S.enemies) {
+    if (e.dead || e.def.air) continue;
+    const p = S.patches.length ? patchAt(e.x, e.y, e.def.boss) : null;
+    if (p) { e.inFire = true; e.burnDps = p.dps * NAPALM.afterK; e.burnT = NAPALM.after; damage(e, p.dps * dt, 'burn', 'dragon'); }
+    else {
+      e.inFire = false;
+      if (e.burnT > 0) { e.burnT -= dt; damage(e, e.burnDps * dt, 'burn', 'dragon'); }
+    }
+  }
 }
 
 // ---------------------------------------------------------------- troopers (garrison + squad)
@@ -609,7 +771,7 @@ function updateTroop(tr, dt) {
   if (tg && d < 8) {
     tr.face = tg.x < tr.x ? -1 : 1;
     tr.cd -= dt;
-    if (tr.cd <= 0) { tr.cd = 0.8; tr.swing = 1; burst(tg.x, tg.y - 14, '#fff3c8', 3, 50, 2, 0.2); if (Math.random() < 0.5) sfx('clang'); damage(tg, dmg, 'phys'); }
+    if (tr.cd <= 0) { tr.cd = 0.8; tr.swing = 1; burst(tg.x, tg.y - 14, '#fff3c8', 3, 50, 2, 0.2); if (Math.random() < 0.5) sfx('clang'); damage(tg, dmg, 'phys', squad ? 'squad' : 'garrison'); }
   }
   if (!tr.target && d <= 2 && tr.hp < tr.maxHp) tr.hp = Math.min(tr.maxHp, tr.hp + 4 * dt);
 }
@@ -708,7 +870,7 @@ function castAir(x, y) {
 }
 function missileHit(x, y) {
   const R = SPELLS.air.radius;
-  for (const e of S.enemies) if (!e.dead && edist(x, y, e.x, e.y) < R + (e.def.boss ? 20 : 0)) damage(e, SPELLS.air.dmg, 'true');
+  for (const e of S.enemies) if (!e.dead && edist(x, y, e.x, e.y) < R + (e.def.boss ? 20 : 0)) damage(e, SPELLS.air.dmg, 'true', 'air');
   S.fx.push({ kind: 'boom', x, y, life: 0.5, max: 0.5 });
   S.decals.push({ x, y, life: 9, max: 9, r: R * 0.8 });
   burst(x, y - 8, '#ffb35a', 26, 180, 4.5, 0.7, 60);
@@ -737,6 +899,8 @@ function update(dt) {
   for (const e of S.enemies) if (!e.dead) updateEnemy(e, dt);
   for (const tw of S.towers) if (tw) updateTower(tw, dt);
   for (const tr of S.troops) updateTroop(tr, dt);
+  updateGlobs(dt);
+  updatePatches(dt);
   S.troops = S.troops.filter((t) => !(t.kind === 'merc' && t.dead));
   S.enemies = S.enemies.filter((e) => !e.dead);
   S.cd.air = Math.max(0, S.cd.air - dt); S.cd.squad = Math.max(0, S.cd.squad - dt);
@@ -785,6 +949,7 @@ function drawEnemy(e) {
   const blocked = e.blockedNow;
   const frame = blocked ? (e.swing > 0.5 ? 7 : 6) : walkFrame(e, e.type === 'scout' ? 1.1 : 1);
   drawSprite(e.type, frame, e.x, e.y, e.face, sc, e.hit > 0);
+  if (e.burnT > 0) drawBurning(e);
   if (d.boss && Math.random() < 0.35) S.parts.push({ x: e.x - e.face * 14, y: e.y - d.h * 0.95, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(60,56,60,.55)', size: rand(4, 7), g: -8, soft: true });
 }
 function drawTroop(tr) {
@@ -821,18 +986,24 @@ function drawTower(tw) {
   ctx.globalAlpha = tw.alpha;
   if (pop !== 1) { ctx.translate(pad.x, pad.y); ctx.scale(pop, pop); ctx.translate(-pad.x, -pad.y); }
   ctx.drawImage(IMG[tw.kind + '_base'], x0, y0, 512 * SPR, 512 * SPR);
-  // head: flipped around its pivot, kicked back on recoil
-  const [px] = def.head.pivot;
+  // head: flipped around its pivot, kicked back on recoil (the dragon also rears its snout up when it spits)
+  const [px] = def.head.pivot, pose = headPose(tw);
   ctx.save();
-  let rx = 0;
-  if (tw.recoil > 0) {
-    const [mx] = def.head.muzzle; rx = -Math.sign((mx - px) * (tw.flip || 1)) * tw.recoil * 4 * TS;
-  }
-  ctx.translate(rx, tw.kind === 'plasma' ? -Math.sin(S.t * 2) * 1.2 * TS : 0);
+  ctx.translate(pose.rx, pose.ry);
+  if (pose.ang) { ctx.translate(pose.cx, pose.cy); ctx.rotate(pose.ang); ctx.translate(-pose.cx, -pose.cy); }
   if (tw.flip === -1) { const cx = x0 + px * SPR; ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0); }
   ctx.drawImage(IMG[tw.kind + '_head'], x0, y0, 512 * SPR, 512 * SPR);
   ctx.restore();
   ctx.restore();
+  if (tw.kind === 'dragon') {   // a flame flickering in the mouth, a gout of fire when it spits
+    const [mx, my] = mouthAt(tw), r = tw.recoil, pose = headPose(tw);
+    const side = Math.sign((def.head.muzzle[0] - def.head.pivot[0]) * (tw.flip || 1)) || 1;   // -1: the snout points left
+    glowDot(mx, my, (12 + 20 * r) * TS + 4, `rgba(255,90,70,${0.35 + 0.45 * r})`);
+    // the flame shoots out of the jaws along the snout (forward and a little up), following the head when it rears
+    ctx.save(); ctx.translate(mx, my); ctx.rotate(side * (Math.PI / 2 - 0.3) + pose.ang);
+    flameTongue(0, 1, (3 + 3 * r) * TS * 1.4, (8 + 3 * Math.sin(S.t * 13 + tw.id) + 16 * r) * TS * 1.4, Math.sin(S.t * 9 + tw.id) * 1.6, 0.95);
+    ctx.restore();
+  }
   // railgun charge glow
   if (tw.kind === 'railgun' && tw.charge > 0) {
     const [mx, my] = muzzle(tw), k = 1 - tw.charge / 0.45;
@@ -846,10 +1017,155 @@ function drawTower(tw) {
     inkFill('#ffd23a', 1.4);
   }
 }
+// The head's pose: recoil shift (rx, ry) and, for the dragon, a nose-up tilt `ang` around the pivot (cx, cy).
+function headPose(tw) {
+  const def = TOWERS[tw.kind], pad = PADS[tw.i], [px, py] = def.head.pivot;
+  const side = Math.sign((def.head.muzzle[0] - px) * (tw.flip || 1)) || 1;
+  const [cx, cy] = spriteToMap(pad, px, py);
+  let rx = 0, ry = 0, ang = 0;
+  if (tw.recoil > 0) {
+    rx = -side * tw.recoil * 4 * TS;
+    if (tw.kind === 'dragon') { ry = -tw.recoil * 3 * TS; ang = -side * 0.13 * Math.sin(Math.min(1, tw.recoil) * Math.PI * 0.5); }
+  }
+  if (tw.kind === 'plasma') ry = -Math.sin(S.t * 2) * 1.2 * TS;
+  return { rx, ry, ang, cx, cy };
+}
+// The muzzle with the head's current pose applied (the dragon's mouth moves when it rears).
+function mouthAt(tw) {
+  const [mx, my] = muzzle(tw), p = headPose(tw);
+  const c = Math.cos(p.ang), s = Math.sin(p.ang), dx = mx - p.cx, dy = my - p.cy;
+  return [p.cx + dx * c - dy * s + p.rx, p.cy + dx * s + dy * c + p.ry];
+}
 function glowDot(x, y, r, color) {
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+
+// ---------------------------------------------------------------- drawing: dragon fire
+// Cached sprites: the fire draws pre-rendered images with globalAlpha instead of building gradients every frame.
+const SPRITE = {}, SOFT = new Map();
+function spriteCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h)); return c; }
+function radialSprite(stops, n = 128) {
+  const c = spriteCanvas(n, n), g = c.getContext('2d'), gr = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  for (const [o, col] of stops) gr.addColorStop(o, col);
+  g.fillStyle = gr; g.fillRect(0, 0, n, n); return c;
+}
+function fireSprites() {
+  if (!SPRITE.core) {
+    SPRITE.core = radialSprite([[0, 'rgba(255,196,90,.85)'], [0.45, 'rgba(250,110,36,.62)'], [1, 'rgba(140,28,20,0)']]);   // molten napalm
+    SPRITE.glow = radialSprite([[0, 'rgba(255,140,40,.65)'], [0.6, 'rgba(255,70,30,.26)'], [1, 'rgba(255,40,30,0)']]);     // additive light
+    SPRITE.warm = radialSprite([[0, 'rgba(255,110,50,1)'], [1, 'rgba(255,110,50,0)']], 64);                                 // on burning units
+  }
+  return SPRITE;
+}
+// A soft round puff in one colour (smoke): a white radial falloff tinted with source-in, cached per colour.
+function softSprite(color) {
+  let c = SOFT.get(color);
+  if (!c) {
+    c = radialSprite([[0, 'rgba(255,255,255,1)'], [0.45, 'rgba(255,255,255,.62)'], [1, 'rgba(255,255,255,0)']], 64);
+    const g = c.getContext('2d'); g.globalCompositeOperation = 'source-in'; g.fillStyle = color; g.fillRect(0, 0, 64, 64);
+    SOFT.set(color, c);
+  }
+  return c;
+}
+// A ground-ellipse image (logical size w x h, `sc` pixels per logical px) centred on (ox, oy); draw(g) paints it in logical units.
+function groundSprite(ext, draw, sc = 3) {
+  const w = 2 * ext, h = 2 * ext * SQ, c = spriteCanvas(w * sc, h * sc), g = c.getContext('2d');
+  g.scale(sc, sc); g.translate(ext, ext * SQ); draw(g);
+  return { c, ox: ext, oy: ext * SQ, w, h };
+}
+// The burnt, sticky napalm puddle: a ground ellipse with irregular blobs (drawn once per patch).
+function puddleSprite(r, blobs) {
+  return groundSprite(r * 1.15 + 2, (g) => {
+    g.fillStyle = 'rgb(26,10,8)'; g.beginPath(); g.ellipse(0, 0, r * 0.8, r * 0.8 * SQ, 0, 0, Math.PI * 2);
+    for (const [bx, by, br] of blobs) { g.moveTo(bx + br, by); g.ellipse(bx, by, br, br * SQ, 0, 0, Math.PI * 2); }
+    g.fill();
+  });
+}
+// Soot left by a patch: soft overlapping smudges in the patch's own blob shape (no hard edge), a few darker flecks.
+function scorchSprite(p) {
+  const k = 0.75, R = p.r * k;
+  return groundSprite(R * 1.25 + 2, (g) => {
+    const smudge = (x, y, r, a) => {
+      g.save(); g.translate(x, y); g.scale(1, SQ);
+      const gr = g.createRadialGradient(0, 0, 0, 0, 0, r);
+      gr.addColorStop(0, `rgba(34,22,16,${a})`); gr.addColorStop(0.55, `rgba(34,22,16,${a * 0.55})`); gr.addColorStop(1, 'rgba(34,22,16,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill(); g.restore();
+    };
+    smudge(0, 0, R, 0.28);
+    for (const [bx, by, br] of p.blobs) smudge(bx * k, by * k, br * 0.9, 0.13);
+    g.fillStyle = 'rgba(22,13,9,.6)';
+    for (let n = 0; n < 7; n++) {
+      const a = rand(0, Math.PI * 2), q = Math.sqrt(Math.random()) * R * 0.8, s = rand(0.6, 1.5);
+      g.beginPath(); g.ellipse(Math.cos(a) * q, Math.sin(a) * q * SQ, s * rand(1, 1.8), s * SQ, rand(-0.4, 0.4), 0, Math.PI * 2); g.fill();
+    }
+  }, 2);
+}
+// One tongue of fire rooted at (x, y), `sway` moves its tip sideways: an orange body that turns hot pink over its top
+// third, an amber middle and a yellow core, with a dark-red ink line so it holds its shape when small.
+function flameTongue(x, y, w, h, sway, a = 1, lw = 1.2) {
+  if (h < 1.5 || a <= 0.01) return;
+  const tongue = (k, wk) => {
+    const tx = x + sway * k, ty = y - h * k, ww = w * wk, base = Math.min(0.7, (0.25 * h * k) / Math.max(0.5, ww));   // a low flame keeps a flat base
+    ctx.beginPath(); ctx.moveTo(x - ww, y);
+    ctx.bezierCurveTo(x - ww * 1.2, y - h * k * 0.45, tx - ww * 0.3, ty + h * k * 0.28, tx, ty);
+    ctx.bezierCurveTo(tx + ww * 0.3, ty + h * k * 0.28, x + ww * 1.2, y - h * k * 0.45, x + ww, y);
+    ctx.quadraticCurveTo(x, y + ww * base, x - ww, y); ctx.closePath();
+  };
+  ctx.globalAlpha = a;
+  const g = ctx.createLinearGradient(0, y, 0, y - h);
+  g.addColorStop(0, '#ff9a2a'); g.addColorStop(0.36, '#ff5a2e'); g.addColorStop(0.6, '#ff3f8a'); g.addColorStop(0.72, '#ff3fa4'); g.addColorStop(1, '#ff6cc0');
+  tongue(1, 1); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(112,8,34,.6)'; ctx.stroke();
+  tongue(0.56, 0.6); ctx.fillStyle = '#ffb33a'; ctx.fill();
+  tongue(0.3, 0.34); ctx.fillStyle = '#fff1a8'; ctx.fill();
+  ctx.globalAlpha = 1;
+}
+// Under the units: the puddle, its spattered drops (they glow, then cool to dark red), the molten core, an additive
+// glow (it also stands in for the light over the patch) and the twinkling coals.
+function drawPatchGround(p, fade = 1) {
+  const F = fireSprites();
+  const born = clamp(p.age / 0.15, 0, 1), end = clamp(p.life / 0.8, 0, 1), h = Math.min(1.3, patchHeat(p)) * fade, mh = Math.min(1, h);
+  const pd = p.puddle, cool = clamp(p.age / 1.4, 0, 1), dropA = born * fade * (0.55 + 0.45 * end);
+  ctx.globalAlpha = 0.72 * born * (0.5 + 0.5 * end) * fade;
+  ctx.drawImage(pd.c, p.x - pd.ox, p.y - pd.oy, pd.w, pd.h);
+  const drops = (k) => { ctx.beginPath(); for (const [bx, by, br] of p.drops) { ctx.moveTo(p.x + bx + br * k, p.y + by); ctx.ellipse(p.x + bx, p.y + by, br * k, br * k * SQ, 0, 0, Math.PI * 2); } ctx.fill(); };
+  ctx.globalAlpha = dropA; ctx.fillStyle = `rgb(${(255 - 165 * cool) | 0},${(150 - 128 * cool) | 0},${(60 - 44 * cool) | 0})`; drops(1);
+  const cr = p.r * 0.78;
+  ctx.globalAlpha = mh; ctx.drawImage(F.core, p.x - cr, p.y - cr * SQ, 2 * cr, 2 * cr * SQ);
+  ctx.globalCompositeOperation = 'lighter';
+  const R = p.r * 1.15, fl = 0.85 + 0.15 * Math.sin(S.t * 13 + p.id);
+  ctx.globalAlpha = Math.min(1, (h * fl) / 1.3); ctx.drawImage(F.glow, p.x - R, p.y - 3 - R * SQ, 2 * R, 2 * R * SQ);
+  if (cool < 1) { ctx.globalAlpha = dropA * (1 - cool) * 0.7; ctx.fillStyle = '#ff7a2a'; drops(2.2); }
+  ctx.globalAlpha = Math.min(1, 0.85 * h); ctx.fillStyle = '#ffc45a';
+  ctx.beginPath();
+  for (const [cx, cy, ph, cr2] of p.coals) {
+    const k = cr2 * (0.45 + 0.65 * (0.5 + 0.5 * Math.sin(S.t * 5 + ph)));
+    ctx.moveTo(p.x + cx + k, p.y + cy); ctx.ellipse(p.x + cx, p.y + cy, k, k * SQ, 0, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+}
+// One flame tongue of a patch (each one is depth-sorted with the units, so a unit stands among the flames). Height,
+// width and alpha all follow the heat, so a dying flame shrinks into the puddle instead of going flat.
+function drawPatchTongue(p, t, fade = 1) {
+  const h = patchHeat(p) * fade, hk = Math.min(1, h), base = 8 + p.r * 0.3, w0 = 3 + p.r * 0.08;
+  const fl = 0.78 + 0.14 * Math.sin(S.t * t.f + t.ph) + 0.08 * Math.sin(S.t * t.f * 2.3 + t.ph * 2);
+  const ht = base * t.s * h * fl;
+  if (ht < 4) return;
+  const w = w0 * (0.55 + 0.45 * t.s) * (0.3 + 0.7 * hk);
+  flameTongue(p.x + t.dx, p.y + t.dy, w, ht, t.ln * ht + Math.sin(S.t * t.f * 0.6 + t.ph) * w0 * 0.7 * hk, Math.min(1, h * 1.6));
+}
+// Small flames on a burning enemy (in a patch, or its afterburn).
+function drawBurning(e) {
+  const d = e.def, a = e.inFire ? 1 : 0.25 + 0.75 * clamp(e.burnT / NAPALM.after, 0, 1), s = d.h / 30, r = d.h * 0.8, cy = e.y - d.h * 0.45;
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 * a;
+  ctx.drawImage(fireSprites().warm, e.x - r, cy - r, 2 * r, 2 * r);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  for (const [ox, oy, sz] of [[-0.3, 0.5, 0.9], [0.25, 0.72, 0.75], [0.04, 0.28, 1.05]]) {
+    const fl = 0.75 + 0.25 * Math.sin(S.t * 11 + e.seed * 3 + ox * 9);
+    flameTongue(e.x + ox * d.h * 0.5 * e.face, e.y - d.h * oy, 2.8 * s * sz, 10 * s * sz * fl * (0.55 + 0.45 * a), Math.sin(S.t * 8 + e.seed + oy * 5) * 1.6 * s, a, 0.9);
+  }
 }
 
 // ---------------------------------------------------------------- drawing: fx
@@ -904,6 +1220,11 @@ function drawFx() {
         ctx.strokeStyle = `rgba(255,58,74,${0.5 + 0.5 * Math.sin(S.t * 20)})`; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.ellipse(f.x, f.y, 22, 22 * SQ, 0, 0, Math.PI * 2); ctx.stroke();
       }
+    } else if (f.kind === 'splash') {
+      const t = 1 - k;
+      glowDot(f.x, f.y - 6, f.r * (0.9 + t), `rgba(255,120,50,${0.85 * k})`);
+      ctx.strokeStyle = `rgba(255,80,160,${k})`; ctx.lineWidth = 3.5 * k + 1;
+      ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r * (0.45 + t * 0.85), f.r * SQ * (0.45 + t * 0.85), 0, 0, Math.PI * 2); ctx.stroke();
     } else if (f.kind === 'flag') {
       ctx.globalAlpha = k;
       ctx.strokeStyle = '#3ff0ff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(f.x, f.y, 30 * (1.4 - k * 0.4), 30 * SQ * (1.4 - k * 0.4), 0, 0, Math.PI * 2); ctx.stroke();
@@ -919,6 +1240,19 @@ function drawFx() {
     else ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
   }
   ctx.globalAlpha = 1;
+  // napalm globs: a smoky ember trail, a glow, a pink-orange blob with a bright core
+  for (const g of S.globs) {
+    const p = globPos(g), n = g.trail.length;
+    ctx.globalCompositeOperation = 'lighter';
+    g.trail.forEach(([x, y], i) => { const q = (i + 1) / n; ctx.fillStyle = `rgba(255,${(80 + 70 * q) | 0},90,${0.4 * q})`; ctx.beginPath(); ctx.arc(x, y, 1.5 + 3.5 * q, 0, Math.PI * 2); ctx.fill(); });
+    ctx.globalCompositeOperation = 'source-over';
+    glowDot(p.x, p.y, 17, 'rgba(255,80,140,.6)');
+    const [ax, ay] = n > 1 ? g.trail[n - 2] : [g.x0, g.y0], ang = Math.atan2(p.y - ay, p.x - ax);
+    const gr = ctx.createRadialGradient(p.x - 1.5, p.y - 1.5, 0.5, p.x, p.y, 6.5);
+    gr.addColorStop(0, '#fff6c8'); gr.addColorStop(0.35, '#ffb03a'); gr.addColorStop(1, '#ff3f8a');
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 6.6, 4.9, ang, 0, Math.PI * 2); ctx.fillStyle = gr; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.stroke();
+  }
   ctx.textAlign = 'center';
   for (const t of S.texts) {
     const k = t.life / t.max;
@@ -966,6 +1300,11 @@ function render() {
   drawAmbient();
   for (const d of S.decals) { ctx.globalAlpha = Math.min(1, d.life / 2) * 0.55; ctx.fillStyle = '#1b130c'; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * SQ, 0, 0, Math.PI * 2); ctx.fill(); }
   ctx.globalAlpha = 1;
+  for (const d of S.decals) if (d.scorch && d.max - d.life < 1.5) glowDot(d.x, d.y, d.r, `rgba(255,90,40,${0.3 * (1 - (d.max - d.life) / 1.5)})`);   // scorch cooling down
+  // dragon fire on the road: puddles and glow (flames go in the depth-sorted list), shadows of globs in flight
+  for (const f of S.fx) if (f.kind === 'patchOut') drawPatchGround(f.p, f.life / f.max);
+  for (const p of S.patches) drawPatchGround(p);
+  for (const g of S.globs) { const p = globPos(g); shadow(p.gx, p.gy, 2.5 + 5 * p.u, (2.5 + 5 * p.u) * 0.45, 0.2 + 0.3 * p.u); }
   drawPadHints();
   // selected tower range / rally flags
   if (S.sel) {
@@ -985,8 +1324,11 @@ function render() {
     list.push({ y: e.y, f: () => drawEnemy(e) });
   }
   for (const tr of S.troops) if (!tr.dead) list.push({ y: tr.y, f: () => drawTroop(tr) });
+  for (const p of S.patches) for (const t of p.tongues) list.push({ y: p.y + t.dy, f: () => drawPatchTongue(p, t) });
+  for (const f of S.fx) if (f.kind === 'patchOut') for (const t of f.p.tongues) list.push({ y: f.p.y + t.dy, f: () => drawPatchTongue(f.p, t, f.life / f.max) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
+  for (const p of S.patches) drawPatchLight(p);
   for (const e of S.enemies) if (e.def.air) drawEnemy(e);
   // health bars
   for (const e of S.enemies) {
@@ -1036,23 +1378,27 @@ function menuButtons() {
   if (!S.sel) return [];
   const i = S.sel.pad, pad = PADS[i], tw = S.towers[i];
   const [cx, cy0] = toScreen(pad.x, pad.y - 70);
-  const R = 62, cy = clamp(cy0, R + 64, VH - R - 50), x = clamp(cx, R + 30, VW - R - 30);
   if (!tw) {
-    const ang = [-135, -45, 135, 45];
-    return TOWER_KEYS.map((k, n) => ({ kind: 'build', tower: k, x: x + Math.cos((ang[n] * Math.PI) / 180) * R, y: cy + Math.sin((ang[n] * Math.PI) / 180) * R, r: 27, cost: TOWERS[k].cost[0], cx: x, cy }));
+    // five build buttons evenly round a bigger ring: the Dragon on top, the first four keep their old corners.
+    // The ring stays clear of the top HUD (and the TAP AGAIN label above the top button) and of the info panel
+    // (a fixed reserve for it, so the ring never jumps when the panel's text changes).
+    const R = VH < 380 ? 66 : 70, ang = { dragon: -90, plasma: -18, garrison: 54, railgun: 126, sniper: 198 };
+    const x = clamp(cx, R + 34, VW - R - 34), cy = clamp(cy0, R + 96, Math.max(R + 96, VH - 86 - R * 0.81 - 37));
+    return TOWER_KEYS.map((k) => ({ kind: 'build', tower: k, x: x + Math.cos((ang[k] * Math.PI) / 180) * R, y: cy + Math.sin((ang[k] * Math.PI) / 180) * R, r: 27, cost: TOWERS[k].cost[0], cx: x, cy, R }));
   }
+  const R = 62, cy = clamp(cy0, R + 64, VH - R - 50), x = clamp(cx, R + 30, VW - R - 30);
   const def = TOWERS[tw.kind];
   const btns = [];
-  btns.push({ kind: 'up', x, y: cy - R, r: 25, cost: tw.lvl < 2 ? def.cost[tw.lvl + 1] : null, cx: x, cy });
+  btns.push({ kind: 'up', x, y: cy - R, r: 25, cost: tw.lvl < 2 ? def.cost[tw.lvl + 1] : null, cx: x, cy, R });
   btns.push({ kind: 'sell', x, y: cy + R, r: 22, cost: Math.round(tw.spent * 0.6), cx: x, cy });
   if (tw.kind === 'garrison') btns.push({ kind: 'rally', x: x - R, y: cy, r: 22, cx: x, cy });
   return btns;
 }
 function drawMenu() {
   const btns = menuButtons(); if (!btns.length) return;
-  const { cx, cy } = btns[0];
+  const { cx, cy, R } = btns[0];
   ctx.save();
-  ctx.strokeStyle = 'rgba(18,13,9,.8)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(cx, cy, 62, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(18,13,9,.8)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = 'rgba(63,240,255,.55)'; ctx.lineWidth = 2; ctx.stroke();
   for (const b of btns) {
     const picked = S.sel.pick && b.tower === S.sel.pick || S.sel.preview === b.kind;
@@ -1083,21 +1429,48 @@ function drawMenu() {
 function showInfo() {
   const el = document.getElementById('info');
   let html = '';
-  if (S.aiming === 'air') html = '<b>AIRSTRIKE</b>Tap the map to call three missiles. Hits flyers too.';
-  else if (S.aiming === 'squad') html = '<b>DROP SQUAD</b>Tap a road to drop two mercs who block for 18 seconds.';
-  else if (S.aiming === 'rally') html = '<b>RALLY</b>Tap the road near the Garrison to move its troopers.';
+  // the title in <b>, the rest in .txt (hidden when the panel has to go compact, see placeInfo)
+  if (S.aiming === 'air') html = '<b>AIRSTRIKE</b><span class="txt">Tap the map to call three missiles. Hits flyers too.</span>';
+  else if (S.aiming === 'squad') html = '<b>DROP SQUAD</b><span class="txt">Tap a road to drop two mercs who block for 18 seconds.</span>';
+  else if (S.aiming === 'rally') html = '<b>RALLY</b><span class="txt">Tap the road near the Garrison to move its troopers.</span>';
   else if (S.sel) {
     const tw = S.towers[S.sel.pad];
-    if (!tw && S.sel.pick) { const d = TOWERS[S.sel.pick]; html = `<b>${d.name.toUpperCase()} · ${d.cost[0]} SCRAP</b>${d.blurb}`; }
-    else if (!tw) html = '<b>BUILD PAD</b>Pick a tower. Pad ' + (S.sel.pad + 1) + (S.sel.pad === 3 ? ' is far from the road: long range works best here.' : '.');
+    if (!tw && S.sel.pick) { const d = TOWERS[S.sel.pick]; html = `<b>${d.name.toUpperCase()} · ${d.cost[0]} SCRAP</b><span class="txt">${d.blurb}</span>`; }
+    else if (!tw) html = '<b>BUILD PAD</b><span class="txt">Pick a tower. Pad ' + (S.sel.pad + 1) + (S.sel.pad === 3 ? ' is far from the road: long range works best here.' : '.') + '</span>';
     else {
       const d = TOWERS[tw.kind];
-      const stat = tw.kind === 'garrison' ? `Troopers ${d.troopHp[tw.lvl]} HP · hit ${d.troopDmg[tw.lvl]}` : tw.kind === 'plasma' ? `Hit ${d.dmg[tw.lvl]} × ${d.chain[tw.lvl]} targets` : `Hit ${d.dmg[tw.lvl]} every ${d.rate[tw.lvl]}s`;
-      const next = tw.lvl < 2 ? ` · Upgrade ${d.cost[tw.lvl + 1]}` : ' · Max level';
-      html = `<b>${d.name.toUpperCase()} · LEVEL ${tw.lvl + 1}</b><span class="meta">${stat}${next}</span>`;
+      const L = tw.lvl;
+      const stat = tw.kind === 'garrison' ? `Troopers ${d.troopHp[L]} HP · hit ${d.troopDmg[L]}` : tw.kind === 'plasma' ? `Hit ${d.dmg[L]} × ${d.chain[L]} targets`
+        : tw.kind === 'dragon' ? `Napalm every ${d.rate[L]}s · fire burns ${d.burn[L]}/s for ${d.patchLife[L]}s` : `Hit ${d.dmg[L]} every ${d.rate[L]}s`;
+      const next = L < 2 ? ` · Upgrade ${d.cost[L + 1]}` + (tw.kind === 'dragon' ? ` (${d.burn[L + 1]}/s, ${d.patchLife[L + 1]}s)` : '') : ' · Max level';
+      html = `<b>${d.name.toUpperCase()} · LEVEL ${tw.lvl + 1}</b><span class="meta txt">${stat}${next}</span>`;
     }
   }
-  el.innerHTML = html; el.hidden = !html;
+  if (el.innerHTML !== html) el.innerHTML = html;
+  el.hidden = !html;
+  placeInfo();
+}
+// The panel sits bottom centre. When that covers the radial menu (short landscape screens, where the ring reaches the
+// bottom), it docks beside the ring on the side with more room; if there is no room, it shows only its title line.
+function placeInfo() {
+  const el = document.getElementById('info');
+  const btns = el.hidden ? [] : menuButtons();
+  const key = btns.length ? btns.map((b) => `${b.x | 0},${b.y | 0}`).join(';') + '|' + VW + 'x' + VH + '|' + el.innerHTML.length : '';
+  if (key === placeInfo.key) return;
+  placeInfo.key = key;
+  el.classList.remove('dock-l', 'dock-r', 'compact'); el.style.maxWidth = '';
+  if (!btns.length) return;
+  // the ring's box: the buttons with their price tags and the TAP AGAIN label above the picked one
+  let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+  for (const k of btns) { l = Math.min(l, k.x - k.r - 4); r = Math.max(r, k.x + k.r + 4); t = Math.min(t, k.y - k.r - 18); b = Math.max(b, k.y + k.r + 12); }
+  const clear = () => { const q = el.getBoundingClientRect(); return q.right <= l || q.left >= r || q.bottom <= t || q.top >= b; };
+  if (clear()) return;
+  const sl = l - 16, sr = VW - r - 16, side = sr >= sl ? 'r' : 'l', room = Math.min(440, Math.max(sl, sr));
+  const dock = () => { el.classList.add('dock-' + side); el.style.maxWidth = room + 'px'; };
+  if (room >= 170) { dock(); if (clear()) return; el.classList.remove('dock-' + side); el.style.maxWidth = ''; }
+  el.classList.add('compact');
+  if (clear() || room < 110) return;
+  dock();
 }
 function drawAimHint() {
   if (S.aiming !== 'air' && S.aiming !== 'squad') return;
@@ -1202,6 +1575,7 @@ function syncHud() {
   $('gold').textContent = S.gold;
   $('wave').textContent = Math.max(1, S.wave) + '/' + WAVES.length;
   syncSpells();
+  if (S.sel) placeInfo();   // the ring moves when the map is dragged
 }
 function syncSpells() {
   for (const [id, key] of [['spellAir', 'air'], ['spellSquad', 'squad']]) {
@@ -1261,7 +1635,7 @@ async function boot() {
   S = newState(); S.paused = true;
   try { if (localStorage.getItem('nw.sound') === '0') { SND.on = false; $('btnSound').setAttribute('aria-pressed', 'false'); $('btnSound').style.opacity = '.55'; } } catch (e) {}
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => { resize(); placeInfo(); });
   cv.addEventListener('pointerdown', onDown);
   cv.addEventListener('pointermove', onMove);
   cv.addEventListener('pointerup', onUp);
@@ -1279,6 +1653,7 @@ window.__NW = {
   get S() { return S; }, PADS, PATHS, TOWERS, ENEMIES, WAVES,
   step(sec) { const n = Math.round(sec / STEP); for (let k = 0; k < n; k++) update(STEP); },
   build, upgrade, sell, setRally, startWave, castAir, castSquad, restart, tap, toWorld, toScreen, CAM,
+  NAPALM, menuButtons, makePatch, leadPoint, dragonTarget, spawnEnemy, showInfo, mouthAt, headPose,
   start() { $('startScreen').hidden = true; S.paused = false; },
 };
 </script>

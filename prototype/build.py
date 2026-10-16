@@ -12,7 +12,8 @@ rep = {
     '__FONT_BUNGEE__': uri(os.path.join(F, 'bungee.woff2'), 'font/woff2'),
     '__FONT_CHAKRA__': uri(os.path.join(F, 'chakra700.woff2'), 'font/woff2'),
 }
-for t in ['sniper', 'plasma', 'railgun', 'garrison']:
+# Tower layers: towers2/out/layers/<tower>-<base|head>.png exported as 512x512 WebP (quality 90, with alpha).
+for t in ['sniper', 'plasma', 'railgun', 'garrison', 'dragon']:
     for l in ['base', 'head']:
         rep[f'__{t.upper()}_{l.upper()}__'] = uri(os.path.join(A, f'{t}-{l}.webp'), 'image/webp')
 for u in ['raider', 'scout', 'enforcer', 'mech', 'drone', 'trooper', 'merc']:
