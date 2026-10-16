@@ -1,0 +1,32 @@
+{
+  "name": "raider-run",
+  "what": "Raider running right",
+  "image": "raider-run.webp",
+  "frameWidth": 534,
+  "frameHeight": 600,
+  "frames": 9,
+  "columns": 3,
+  "rows": 3,
+  "fps": 12,
+  "loop": true,
+  "facing": "right",
+  "anchor": {
+    "x": 267,
+    "y": 576,
+    "note": "feet on the ground, horizontal centre of the cell"
+  },
+  "source": {
+    "video": "raider",
+    "videoFrames": [
+      116,
+      118,
+      120,
+      122,
+      124,
+      126,
+      128,
+      130,
+      132
+    ]
+  }
+}

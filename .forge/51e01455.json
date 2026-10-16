@@ -1,0 +1,254 @@
+{
+  "forge": 1,
+  "request": "51e01455-a81f-4dfd-a4a6-4d20a92c4c41",
+  "short": "51e01455",
+  "vault": "https://playtest-vault.vercel.app",
+  "provider": "leonardo",
+  "model": "lucid-origin",
+  "kind": "concept",
+  "title": "Neon Wasteland enemy concepts",
+  "game": "neon-wasteland",
+  "repo": "HeartwaveTheory/neon-wasteland",
+  "requested_by": "DirtyDiaper",
+  "approved_by": [],
+  "approved_how": "auto",
+  "requested_at": "2026-10-16T05:13:43.773+00:00",
+  "approved_at": "2026-10-16T05:13:43.811192+00:00",
+  "finished_at": "2026-10-16T05:14:32.711527+00:00",
+  "calls": [
+    {
+      "call": {
+        "body": {
+          "model": "lucid-origin",
+          "parameters": {
+            "guidances": {
+              "style": [
+                {
+                  "image": {
+                    "id": {
+                      "$input": 0
+                    },
+                    "type": "UPLOADED"
+                  },
+                  "strength": "MID"
+                }
+              ]
+            },
+            "height": 1200,
+            "mode": "FAST",
+            "prompt": "A wiry wasteland raider, the common foot soldier of a scrapper gang: a purple dome helmet with a glowing magenta visor, a patched olive jacket over dark armour plates, a glowing magenta energy blade raised in one hand and a cyan one in the other, neon sneakers with pink and cyan soles. Side view facing right, full body, mid-stride. Hand-inked 2D game art: bold thick black outlines, flat cel-shaded colour with one hard shadow tone, gritty speckled grain texture, light from the upper left, dusty gunmetal, olive and rust with bright neon accents in magenta, cyan and orange, a chunky readable silhouette, plain light grey background, no text.",
+            "prompt_enhance": "OFF",
+            "quantity": 1,
+            "style_ids": [
+              "111dc692-d470-4eec-b791-3475abac4c46"
+            ],
+            "width": 1200
+          },
+          "public": false
+        },
+        "method": "POST",
+        "path": "/api/rest/v2/generations",
+        "query": {}
+      },
+      "n": 0,
+      "name": "raider"
+    },
+    {
+      "call": {
+        "body": {
+          "model": "lucid-origin",
+          "parameters": {
+            "guidances": {
+              "style": [
+                {
+                  "image": {
+                    "id": {
+                      "$input": 0
+                    },
+                    "type": "UPLOADED"
+                  },
+                  "strength": "MID"
+                }
+              ]
+            },
+            "height": 1200,
+            "mode": "FAST",
+            "prompt": "A fast robot attack dog that runs with a scrapper gang: a lean body of riveted gunmetal plates with ribbed sides, thin piston legs, a pointed wolf-like head with one glowing cyan eye and a jagged orange light for a mouth, a short antenna mast on its back. Side view facing right, full body, running. Hand-inked 2D game art: bold thick black outlines, flat cel-shaded colour with one hard shadow tone, gritty speckled grain texture, light from the upper left, dusty gunmetal, olive and rust with bright neon accents in magenta, cyan and orange, a chunky readable silhouette, plain light grey background, no text.",
+            "prompt_enhance": "OFF",
+            "quantity": 1,
+            "style_ids": [
+              "111dc692-d470-4eec-b791-3475abac4c46"
+            ],
+            "width": 1200
+          },
+          "public": false
+        },
+        "method": "POST",
+        "path": "/api/rest/v2/generations",
+        "query": {}
+      },
+      "n": 1,
+      "name": "scout"
+    },
+    {
+      "call": {
+        "body": {
+          "model": "lucid-origin",
+          "parameters": {
+            "guidances": {
+              "style": [
+                {
+                  "image": {
+                    "id": {
+                      "$input": 0
+                    },
+                    "type": "UPLOADED"
+                  },
+                  "strength": "MID"
+                }
+              ]
+            },
+            "height": 1200,
+            "mode": "FAST",
+            "prompt": "A hulking armoured enforcer, a slow heavy brute: bulky grey riveted power armour with huge rounded shoulder pads, a scowling bald face with glowing red eyes inside an open helmet, curved neon tubes in rainbow colours running over the helmet like a crest, three glowing orange vents on the chest, one giant piston fist. Side view facing right, full body, stomping forward. Hand-inked 2D game art: bold thick black outlines, flat cel-shaded colour with one hard shadow tone, gritty speckled grain texture, light from the upper left, dusty gunmetal, olive and rust with bright neon accents in magenta, cyan and orange, a chunky readable silhouette, plain light grey background, no text.",
+            "prompt_enhance": "OFF",
+            "quantity": 1,
+            "style_ids": [
+              "111dc692-d470-4eec-b791-3475abac4c46"
+            ],
+            "width": 1200
+          },
+          "public": false
+        },
+        "method": "POST",
+        "path": "/api/rest/v2/generations",
+        "query": {}
+      },
+      "n": 2,
+      "name": "enforcer"
+    },
+    {
+      "call": {
+        "body": {
+          "model": "lucid-origin",
+          "parameters": {
+            "guidances": {
+              "style": [
+                {
+                  "image": {
+                    "id": {
+                      "$input": 0
+                    },
+                    "type": "UPLOADED"
+                  },
+                  "strength": "MID"
+                }
+              ]
+            },
+            "height": 1200,
+            "mode": "FAST",
+            "prompt": "A small flying combat drone: a flat dark gunmetal body with four arms and spinning rotor blades, one glowing red sensor eye underneath, yellow and black hazard stripes on its belly. Three-quarter side view facing right, hovering in the air. Hand-inked 2D game art: bold thick black outlines, flat cel-shaded colour with one hard shadow tone, gritty speckled grain texture, light from the upper left, dusty gunmetal, olive and rust with bright neon accents in magenta, cyan and orange, a chunky readable silhouette, plain light grey background, no text.",
+            "prompt_enhance": "OFF",
+            "quantity": 1,
+            "style_ids": [
+              "111dc692-d470-4eec-b791-3475abac4c46"
+            ],
+            "width": 1200
+          },
+          "public": false
+        },
+        "method": "POST",
+        "path": "/api/rest/v2/generations",
+        "query": {}
+      },
+      "n": 3,
+      "name": "drone"
+    },
+    {
+      "call": {
+        "body": {
+          "model": "lucid-origin",
+          "parameters": {
+            "guidances": {
+              "style": [
+                {
+                  "image": {
+                    "id": {
+                      "$input": 0
+                    },
+                    "type": "UPLOADED"
+                  },
+                  "strength": "MID"
+                }
+              ]
+            },
+            "height": 1200,
+            "mode": "FAST",
+            "prompt": "A huge two-legged war mech, the final boss: a boxy olive armour hull streaked with rust, yellow and black hazard stripes, a long heavy cannon mounted on top, a rocket pod with rows of red lights on its side, a glowing cyan reactor core in its chest, thick piston legs with round knee joints. Side view facing right, full body, standing. Hand-inked 2D game art: bold thick black outlines, flat cel-shaded colour with one hard shadow tone, gritty speckled grain texture, light from the upper left, dusty gunmetal, olive and rust with bright neon accents in magenta, cyan and orange, a chunky readable silhouette, plain light grey background, no text.",
+            "prompt_enhance": "OFF",
+            "quantity": 1,
+            "style_ids": [
+              "111dc692-d470-4eec-b791-3475abac4c46"
+            ],
+            "width": 1200
+          },
+          "public": false
+        },
+        "method": "POST",
+        "path": "/api/rest/v2/generations",
+        "query": {}
+      },
+      "n": 4,
+      "name": "mech"
+    }
+  ],
+  "inputs": [
+    {
+      "bytes": 442163,
+      "file": "e447f38b-eb6d-4b64-a988-01361517a396",
+      "height": 400,
+      "sha256": "10e112d0707060727ad6a503f7cec0714e63b2ebba0eba168b16ef134160facf",
+      "width": 1760
+    }
+  ],
+  "concept_only": true,
+  "files": [
+    {
+      "path": "assets/forge/concepts/drone.jpg",
+      "sha256": "b8e38e2188e11d7421d8a44a958ba4bc248f91e7917e11d622b0e8bb9ff930bd",
+      "bytes": 314207
+    },
+    {
+      "path": "assets/forge/concepts/enforcer.jpg",
+      "sha256": "09c5b6f3063c4d11f93e43fe49fb8b0662387a2fe22da9a7a167eff75312a908",
+      "bytes": 305334
+    },
+    {
+      "path": "assets/forge/concepts/mech.jpg",
+      "sha256": "6039dd7e18b2a857c2002e52b98e4758eb03d96144638957f6e780a678735123",
+      "bytes": 246654
+    },
+    {
+      "path": "assets/forge/concepts/raider.jpg",
+      "sha256": "de57fc07a7eb9133f5361674f1559f341aa3904cb70ac50f3ac379a5ce2f1696",
+      "bytes": 142201
+    },
+    {
+      "path": "assets/forge/concepts/scout.jpg",
+      "sha256": "b718b7af9d123926854f835badbc67b98ea379f2f9fadc04f2acc63b9c8cc4ca",
+      "bytes": 243344
+    }
+  ],
+  "cost": {
+    "estimate": {
+      "credits": 0,
+      "usd": 0.65
+    },
+    "actual": {
+      "credits": 0,
+      "usd": 0.112,
+      "unpriced": 0
+    }
+  },
+  "terms": "Leonardo paid API, private, not used for training (Leonardo's API page). Ownership under Leonardo ToS §8.3 awaiting Leonardo's confirmation: internal concept use only until then."
+}

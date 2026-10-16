@@ -1,0 +1,37 @@
+{
+  "name": "scout-run",
+  "what": "Scout (robot dog) galloping right",
+  "image": "scout-run.webp",
+  "frameWidth": 768,
+  "frameHeight": 624,
+  "frames": 14,
+  "columns": 7,
+  "rows": 2,
+  "fps": 24,
+  "loop": true,
+  "facing": "right",
+  "anchor": {
+    "x": 384,
+    "y": 615,
+    "note": "feet on the ground, horizontal centre of the cell"
+  },
+  "source": {
+    "video": "scout",
+    "videoFrames": [
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75
+    ]
+  }
+}
