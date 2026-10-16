@@ -6,3 +6,4 @@ prototype/dist/
 prototype/shots/
 units/out/
 venv
+.vault/
