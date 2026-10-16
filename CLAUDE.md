@@ -19,7 +19,8 @@ playable prototype (towers, enemies, spells, waves, balance).
 - `prototype/README.md` covers the build script (`build.py`), the screenshot and bot-playtest scripts (`test.mjs`,
   `sim.mjs`, `dragon-test.mjs`, `leash.mjs`, `living-test.mjs`, `walk.mjs`) and `tools/trace_road.py`.
 - The map is a painting (`art/map-v3-source.webp`, copied to `prototype/assets/map.webp`); `maplab/` no longer makes it.
-  Pads, HQ, gates, routes and the living map's lights, acid boxes and wires are measured on it in 1x pixels. The Node scripts find Playwright
+  Pads, HQ, gates, routes and the living map's lights, acid boxes and wires are measured on it in 1x pixels. Pads 1-4
+  are painted; the game draws pads 5-10 (`drawPads` in `game.html`). The Node scripts find Playwright
   through `$PLAYWRIGHT` (the path to its `index.mjs`).
 - The game's numbers are connected to the Game Tuner (`tuner.json`, `prototype/tuning.schema.json`). Change a tuned
   number in `game.html` and the schema's `default` together; `node prototype/tuning-check.mjs` checks they match.

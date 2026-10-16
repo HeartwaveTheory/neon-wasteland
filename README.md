@@ -6,8 +6,8 @@ prototype (`prototype/neon-wasteland.html`, one file, open it in a browser).
 ## What's here
 
 - `art/map-v3-source.webp` (1672 × 941): **the game's map** since Map v3, a painting of the Neon Wasteland canyon (two
-  enemy gates at the top, 4 build pads, the junction, the AEGIS HQ at the bottom, acid pools and falls). The game brings
-  it to life with moving acid, lights and particles (`prototype/README.md`).
+  enemy gates at the top, 4 build pads, the junction, the AEGIS HQ at the bottom, acid pools and falls). The game draws
+  6 more pads to match (10 in all) and brings it to life with moving acid, lights and particles (`prototype/README.md`).
 - `art/map.png` and `art/map-2x.webp`: the earlier map, drawn in code by `maplab/` (Layout v2). `maplab/` no longer makes
   the game's map; it's kept for reference.
 - `art/towers/*.png` (512 × 512) and `art/towers/layers/*-base.png` / `*-head.png`: the first four towers, drawn from the

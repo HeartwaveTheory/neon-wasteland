@@ -147,10 +147,12 @@ const TS = SPR / 0.46;        // tower effects scale with the sprite
 const INK = '#120d09';
 
 // ---------------------------------------------------------------- map data
-// Map v3 (art/map-v3-source.webp, painted): its 4 build pads, measured from their cyan rings, and where the road meets the
-// AEGIS gate. The pads, rings and slabs are all in the painting; the game draws only the selection and hover rings.
-const PADS = [{ x: 463, y: 182 }, { x: 1022, y: 240 }, { x: 553, y: 363 }, { x: 1200, y: 378 }];
-const PAD_TAP = { rx: 90, ry: 46 };   // a pad's tap area: its painted cyan ring
+// Map v3 (art/map-v3-source.webp, painted): 10 build pads. 1-4 are in the painting (measured from their cyan rings);
+// 5-10 are drawn by the game to match them (drawPads), one size smaller so they fit on open ground beside the roads.
+// tx/ty is each pad's tap area (its cyan ring); the game draws only the selection and hover rings over it.
+const PAD_ART = { rx: 46, ry: 23 };   // the drawn pads' slab (the painted slabs are about rx 78 / ry 38)
+const PADS = [[463, 182], [1022, 240], [553, 363], [1200, 378]].map(([x, y]) => ({ x, y, tx: 90, ty: 46 }))
+  .concat([[388, 338], [1352, 300], [1162, 208], [782, 500], [960, 492], [700, 330]].map(([x, y]) => ({ x, y, tx: 56, ty: 30, drawn: true })));
 const HQ = { x: 880, y: 548 };
 // Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate.
 const ROUTE_L = [[174, -30], [176, 40], [182, 80], [196, 118], [215, 141], [237, 142], [257, 152], [277, 164], [292, 181], [304, 201], [321, 219], [337, 235], [355, 249], [377, 257], [399, 265], [421, 269], [443, 274], [465, 275], [487, 275], [509, 275], [531, 275], [553, 272], [575, 270], [597, 265], [619, 260], [641, 257], [663, 257], [685, 258], [707, 264], [729, 267], [751, 275], [773, 285], [793, 295], [813, 306], [831, 323], [847, 339], [863, 355], [877, 373], [879, 395], [879, 417], [879, 439], [879, 461], [879, 483], [879, 505], [881, 527], [880, 548]];
@@ -207,28 +209,28 @@ const aimY = (e) => e.y - (e.def.air ? HOVER : e.def.h * 0.5);
 // ---------------------------------------------------------------- towers
 const TOWERS = {
   sniper: {
-    name: 'Sniper', cost: [90, 110, 160], range: [300, 330, 360], dmg: [32, 52, 80], rate: [1.7, 1.5, 1.3], air: true,
+    name: 'Sniper', cost: [90, 110, 160], range: [300, 330, 360], dmg: [28, 52, 86], rate: [1.7, 1.5, 1.3], air: true,
     dtype: 'phys', glow: '#a35cff', blurb: 'Long range, heavy single shots. Hits flyers. Weak against armour.',
     head: { pivot: [268, 110], muzzle: [384.6, 89.2], faces: 1 },
   },
   plasma: {
-    name: 'Plasma', cost: [110, 140, 200], range: [230, 250, 270], dmg: [14, 21, 31], chain: [3, 4, 5], rate: [1.15, 1.05, 0.95], air: true,
+    name: 'Plasma', cost: [110, 140, 200], range: [230, 250, 270], dmg: [12, 21, 33], chain: [3, 4, 5], rate: [1.15, 1.05, 0.95], air: true,
     dtype: 'energy', glow: '#3ff0ff', blurb: 'Chain lightning that jumps between enemies. Ignores armour. Hits flyers.',
     head: { pivot: [256, 160], muzzle: [256, 44], faces: 0 },
   },
   railgun: {
-    name: 'Railgun', cost: [120, 150, 220], range: [280, 300, 320], dmg: [90, 150, 230], rate: [2.6, 2.4, 2.2], air: false,
+    name: 'Railgun', cost: [120, 150, 220], range: [280, 300, 320], dmg: [80, 150, 240], rate: [2.6, 2.4, 2.2], air: false,
     dtype: 'pierce', glow: '#ff8a1e', blurb: 'Slow piercing shot through every enemy in a line. Ground only.',
     head: { pivot: [270, 150], muzzle: [113, 135], faces: -1 },
   },
   garrison: {
-    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
+    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [80, 140, 210], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
     respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers hold the road near their rally point and never leave the tower\'s range. Tap Rally to move them.',
     head: { pivot: [256, 162], muzzle: [178, 429], faces: 0 },
   },
   dragon: {
     name: 'Dragon', cost: [110, 150, 210], range: [210, 225, 240], dmg: [10, 16, 24], rate: [2.4, 2.2, 2.0], air: false,
-    patchR: [30, 36, 42], patchLife: [4, 5, 6], burn: [18, 26, 36],   // burn per second (spec started at 12/18/26; tuned with sim.mjs)
+    patchR: [30, 36, 42], patchLife: [4, 5, 6], burn: [16, 26, 38],   // burn per second (spec started at 12/18/26; tuned with sim.mjs)
     dtype: 'fire', glow: '#ff3fa4', blurb: 'Spits napalm that sets the road on fire for a few seconds. Fire burns through armour. Ground only.',
     // from towers2/towers/dragon.mjs: the pivot is the top of the neck, the muzzle is the mouth (the head faces left, like the railgun)
     head: { pivot: [272, 176], muzzle: [110.5, 194.8], faces: -1 },
@@ -239,13 +241,13 @@ const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison', 'dragon'];
 const NAPALM = { flight: 0.6, maxPatches: 3, after: 1, afterK: 0.5 };
 
 // ---------------------------------------------------------------- enemies
-// Map v3 (4 pads): the boss has 2800 HP (was 3400) so a good mixed build can sometimes stop it (sim.mjs).
+// Map v3: the boss has 3000 HP (was 3400) so a good mixed defence can stop it (sim.mjs).
 const ENEMIES = {
   raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 140, shadow: 7 },
   scout:    { name: 'Scout',    hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, h: 23, sh: 112, shadow: 11 },
   enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 140, shadow: 11 },
   drone:    { name: 'Drone',    hp: 70,   speed: 52, armor: 0,   bounty: 9,   lives: 1,  air: true, h: 17, sh: 70, shadow: 8 },
-  mech:     { name: 'Mech',     hp: 2800, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 140, shadow: 20, boss: true },
+  mech:     { name: 'Mech',     hp: 3000, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 140, shadow: 20, boss: true },
 };
 // Waves: groups of { t: type, n: count, g: gate, every: seconds between, delay: start delay }.
 const WAVES = [
@@ -260,8 +262,10 @@ const WAVES = [
   [{ t: 'enforcer', n: 7, g: 'L', every: 2.2 }, { t: 'enforcer', n: 5, g: 'R', every: 2.6, delay: 3 }, { t: 'drone', n: 12, g: 'L', every: 0.8, delay: 5 }, { t: 'scout', n: 12, g: 'R', every: 0.5, delay: 10 }],
   [{ t: 'mech', n: 1, g: 'L', delay: 4 }, { t: 'raider', n: 14, g: 'R', every: 0.8 }, { t: 'enforcer', n: 4, g: 'L', every: 3, delay: 10 }, { t: 'drone', n: 10, g: 'R', every: 1, delay: 14 }],
 ];
-const START_GOLD = 300, START_LIVES = 20, WAVE_GAP = 20;
-const HP_PER_WAVE = 0.05, BOUNTY = 0.85;   // enemy health +5% per wave; bounties scaled
+// With 10 pads, filling every pad with level-1 towers was too strong: level 1 hits a little softer and level 3 harder
+// (the damage, burn and trooper numbers above), the start is leaner and later waves tougher (sim.mjs).
+const START_GOLD = 270, START_LIVES = 20, WAVE_GAP = 20;
+const HP_PER_WAVE = 0.06, BOUNTY = 0.85;   // enemy health +6% per wave; bounties scaled
 const SPELLS = {
   air: { cd: 40, dmg: 75, radius: 46, missiles: 3 },
   squad: { cd: 20, life: 18, hp: 70, dmg: 7 },
@@ -1300,6 +1304,52 @@ function drawFx() {
   ctx.globalAlpha = 1;
 }
 
+// ---------------------------------------------------------------- the game-drawn build pads (Map v3)
+// Pads 5-10 match the painted ones: a concrete octagon on a cleared dirt patch with a contact shadow, a hazard-stripe
+// ring, a faded build mark, cyan corner lights (the same corners as the painted pads) and a thin cyan rim. Drawn once
+// into a sprite at 3x, then stamped under the units each frame.
+const PAD_LEDS = [Math.PI / 8, (5 * Math.PI) / 8, (9 * Math.PI) / 8, (13 * Math.PI) / 8];   // right, bottom-left, left, top-right
+function padSprite() {
+  if (SPRITE.pad) return SPRITE.pad;
+  const R = PAD_ART.rx, r = PAD_ART.ry, th = r * 0.34, sc = 3, W = R * 3.2, H = r * 3.8, oy = H * 0.44;
+  const c = spriteCanvas(W * sc, H * sc), g = c.getContext('2d');
+  g.scale(sc, sc); g.translate(W / 2, oy);   // origin = the centre of the slab's top
+  const oct = (k, dy = 0) => { for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + (i * Math.PI) / 4, x = Math.cos(a) * R * k, y = Math.sin(a) * r * k + dy; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); };
+  const blob = (x, y, rx, ry, stops) => { g.save(); g.translate(x, y); g.scale(1, ry / rx); const gr = g.createRadialGradient(0, 0, 0, 0, 0, rx); for (const [o, col] of stops) gr.addColorStop(o, col); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill(); g.restore(); };
+  // cleared, packed dirt (the colour round the painted pads) and the contact shadow
+  blob(0, r * 0.3, R * 1.5, r * 1.75, [[0, 'rgba(150,103,72,.97)'], [0.62, 'rgba(140,95,66,.9)'], [1, 'rgba(118,80,56,0)']]);
+  blob(R * 0.1, th + r * 0.25, R * 1.12, r * 1.15, [[0, 'rgba(22,14,20,.6)'], [0.7, 'rgba(22,14,20,.35)'], [1, 'rgba(22,14,20,0)']]);
+  g.lineJoin = 'round'; g.strokeStyle = '#151112';
+  // the slab's front faces (one dark band under the top), then the top
+  g.beginPath(); oct(1, th); g.fillStyle = '#34302e'; g.fill(); g.lineWidth = 1.6; g.stroke();
+  g.beginPath(); oct(1); g.fillStyle = '#9b9187'; g.fill(); g.stroke();
+  g.beginPath(); for (const k of [4, 5, 6]) { const a = Math.PI / 8 + (k * Math.PI) / 4; g[k === 4 ? 'moveTo' : 'lineTo'](Math.cos(a) * R * 0.96, Math.sin(a) * r * 0.96); }
+  g.strokeStyle = 'rgba(220,210,196,.55)'; g.lineWidth = 1; g.stroke();   // lit upper-left rim
+  // hazard ring between two octagons (stripes on a diagonal pattern)
+  const st = spriteCanvas(8, 8), sg = st.getContext('2d');
+  sg.fillStyle = '#e4b02c'; sg.fillRect(0, 0, 8, 8); sg.strokeStyle = '#1a1614'; sg.lineWidth = 2.6;
+  for (const o of [-8, 0, 8]) { sg.beginPath(); sg.moveTo(o, 8); sg.lineTo(o + 8, 0); sg.stroke(); }
+  g.beginPath(); oct(0.84); oct(0.64); g.fillStyle = g.createPattern(st, 'repeat'); g.fill('evenodd');
+  g.strokeStyle = '#151112'; g.lineWidth = 1; g.beginPath(); oct(0.84); g.stroke(); g.beginPath(); oct(0.64); g.stroke();
+  // inner panel, a fainter octagon and the stencilled build mark
+  g.beginPath(); oct(0.64); g.fillStyle = '#7c746b'; g.fill();
+  g.beginPath(); oct(0.46); g.strokeStyle = 'rgba(96,88,80,.8)'; g.lineWidth = 1; g.stroke();
+  g.strokeStyle = 'rgba(214,168,64,.6)'; g.lineWidth = 1.6; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(-R * 0.22, 0); g.lineTo(R * 0.22, 0); g.moveTo(0, -r * 0.22); g.lineTo(0, r * 0.22); g.stroke();
+  // the thin cyan rim round the slab, and the corner lights
+  g.beginPath(); g.ellipse(0, th * 0.4, R * 1.16, r * 1.24, 0, 0, Math.PI * 2); g.strokeStyle = 'rgba(95,225,255,.6)'; g.lineWidth = 1.1; g.stroke();
+  for (const a of PAD_LEDS) {
+    const x = Math.cos(a) * R * 0.9, y = Math.sin(a) * r * 0.9;
+    blob(x, y, 4.2, 4.2, [[0, 'rgba(110,240,255,.75)'], [1, 'rgba(110,240,255,0)']]);
+    g.beginPath(); g.arc(x, y, 1.5, 0, Math.PI * 2); g.fillStyle = '#c8fdff'; g.fill();
+  }
+  return (SPRITE.pad = { c, W, H, oy });
+}
+function drawPads() {
+  const s = padSprite();
+  for (const p of PADS) if (p.drawn) ctx.drawImage(s.c, p.x - s.W / 2, p.y - s.oy, s.W, s.H);
+}
+
 // ---------------------------------------------------------------- living map (Map v3)
 // The painting brought to life, all drawn under the units: moving acid, lights that glow and breathe, particles, and a
 // few extras (energy pulses along the power lines, a searchlight sweeping from the HQ, the data-mine portal swirling).
@@ -1350,6 +1400,7 @@ const LIGHTS = [
   // pad corner lights (painted on the slabs)
   ...[[492, 145], [397, 166], [529, 195], [434, 213], [1051, 201], [955, 223], [1092, 253], [995, 275],
     [578, 327], [478, 349], [619, 379], [520, 400], [1229, 339], [1130, 361], [1271, 391], [1171, 411]].map(([x, y]) => LGT(x, y, 9, LC.cyan, 'pad')),
+  ...PADS.filter((p) => p.drawn).flatMap((p) => PAD_LEDS.map((a) => LGT(p.x + Math.cos(a) * PAD_ART.rx * 0.9, p.y + Math.sin(a) * PAD_ART.ry * 0.9, 7, LC.cyan, 'pad'))),
   // pylon insulators
   ...[[60, 590], [168, 557], [148, 578], [175, 578], [400, 527], [412, 527], [580, 504], [575, 525], [1136, 506], [1161, 506],
     [1402, 489], [1429, 489], [1620, 435], [1647, 435]].map(([x, y]) => LGT(x, y, 8, LC.cyan, 'ins')),
@@ -1588,7 +1639,7 @@ function drawPadHints() {
     const p = PADS[i], a = 0.35 + 0.25 * Math.sin(S.t * 3 + i);
     const sel = S.sel && S.sel.pad === i;
     ctx.strokeStyle = sel ? '#ffd23a' : `rgba(63,240,255,${a})`; ctx.lineWidth = sel ? 4 : 3;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, PAD_TAP.rx, PAD_TAP.ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.tx, p.ty, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
 function render() {
@@ -1597,6 +1648,7 @@ function render() {
   ctx.fillStyle = '#15100b'; ctx.fillRect(0, 0, VW, VH);
   ctx.setTransform(DPR * CAM.s, 0, 0, DPR * CAM.s, DPR * (-CAM.x * CAM.s + rand(-sh, sh)), DPR * (-CAM.y * CAM.s + rand(-sh, sh)));
   if (IMG.map) ctx.drawImage(IMG.map, 0, 0, MAP_W, MAP_H);
+  drawPads();
   drawLiving();
   drawAmbient();
   for (const d of S.decals) {
@@ -1753,7 +1805,7 @@ function showInfo() {
   else if (S.sel) {
     const tw = S.towers[S.sel.pad];
     if (!tw && S.sel.pick) { const d = TOWERS[S.sel.pick]; html = `<b>${d.name.toUpperCase()} · ${d.cost[0]} SCRAP</b><span class="txt">${d.blurb}</span>`; }
-    else if (!tw) html = '<b>BUILD PAD</b><span class="txt">Pick a tower. Pad ' + (S.sel.pad + 1) + (S.sel.pad === 3 ? ' is far from the road: long range works best here.' : '.') + '</span>';
+    else if (!tw) html = '<b>BUILD PAD</b><span class="txt">Pick a tower. Pad ' + (S.sel.pad + 1) + ([3, 5].includes(S.sel.pad) ? ' is far from the road: long range works best here.' : '.') + '</span>';
     else {
       const d = TOWERS[tw.kind];
       const L = tw.lvl;
@@ -1843,7 +1895,7 @@ function onWheel(ev) {
 function padAt(wx, wy) {
   for (let i = 0; i < PADS.length; i++) {
     const p = PADS[i];
-    const inPad = ((wx - p.x) / PAD_TAP.rx) ** 2 + ((wy - p.y) / PAD_TAP.ry) ** 2 <= 1;
+    const inPad = ((wx - p.x) / p.tx) ** 2 + ((wy - p.y) / p.ty) ** 2 <= 1;
     const inTower = S.towers[i] && Math.abs(wx - p.x) < Math.max(40, 62 * TS) && wy < p.y && wy > p.y - Math.max(110, 190 * TS);
     if (inPad || inTower) return i;
   }
