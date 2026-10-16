@@ -1,5 +1,8 @@
 # Neon Wasteland map: brief
 
+**No longer the game's map** (Map v3, issue #4): the game uses the painted map `../art/map-v3-source.webp`. This
+folder made the earlier, code-drawn map and is kept for reference.
+
 We are redesigning the reference map (`ref/map.png`, 1672 × 941, a hand-painted fantasy frontier valley) into a
 **cyberpunk × Borderlands** tower-defense map, chosen direction **"Neon Wasteland"**:
 

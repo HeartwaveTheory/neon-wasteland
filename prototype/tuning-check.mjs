@@ -9,6 +9,7 @@
 //   enemies.<enemy>.<stat>              -> ENEMIES[enemy][stat]
 //   spells.<spell>.<stat>               -> SPELLS[spell][stat]
 //   napalm.<stat>                       -> NAPALM[stat]
+//   fx.<setting>                        -> LIVE[setting] (the living map: glow, particles, acidSpeed)
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import path from 'node:path';
@@ -20,7 +21,7 @@ const src = readFileSync(path.join(HERE, 'game.html'), 'utf8');
 const a = src.indexOf('// ---------------------------------------------------------------- map data');
 const b = src.indexOf('// ---------------------------------------------------------------- state');
 if (a < 0 || b < a) throw new Error('could not find the data section in game.html');
-const data = vm.runInNewContext(src.slice(a, b) + ';({ TOWERS, ENEMIES, SPELLS, NAPALM, START_GOLD, START_LIVES, WAVE_GAP, HP_PER_WAVE, BOUNTY })', { Math });
+const data = vm.runInNewContext(src.slice(a, b) + ';({ TOWERS, ENEMIES, SPELLS, NAPALM, LIVE, START_GOLD, START_LIVES, WAVE_GAP, HP_PER_WAVE, BOUNTY })', { Math });
 
 const ECON = { startGold: 'START_GOLD', startLives: 'START_LIVES', waveGap: 'WAVE_GAP', hpPerWave: 'HP_PER_WAVE', bountyScale: 'BOUNTY' };
 function codeValue(key) {
@@ -30,6 +31,7 @@ function codeValue(key) {
   if (head === 'enemies') return data.ENEMIES[rest[0]]?.[rest[1]];
   if (head === 'spells') return data.SPELLS[rest[0]]?.[rest[1]];
   if (head === 'napalm') return data.NAPALM[rest[0]];
+  if (head === 'fx') return data.LIVE[rest[0]];
   return undefined;
 }
 

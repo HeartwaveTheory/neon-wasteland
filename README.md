@@ -5,10 +5,11 @@ prototype (`prototype/neon-wasteland.html`, one file, open it in a browser).
 
 ## What's here
 
-- `art/map.png` (1672 × 941) and `art/map-2x.webp`: the **Neon Wasteland** map. It is the user's reference map
-  (`maplab/ref/map.webp`) repainted as a sun-baked Borderlands-style canyon with cyberpunk tech: the two enemy gates, the
-  junction and the AEGIS HQ at the bottom. Layout v2 (`maplab/LAYOUT.md`) has 10 smaller build pads and a half-size HQ
-  further down, with the road running on through its plaza.
+- `art/map-v3-source.webp` (1672 × 941): **the game's map** since Map v3, a painting of the Neon Wasteland canyon (two
+  enemy gates at the top, 4 build pads, the junction, the AEGIS HQ at the bottom, acid pools and falls). The game brings
+  it to life with moving acid, lights and particles (`prototype/README.md`).
+- `art/map.png` and `art/map-2x.webp`: the earlier map, drawn in code by `maplab/` (Layout v2). `maplab/` no longer makes
+  the game's map; it's kept for reference.
 - `art/towers/*.png` (512 × 512) and `art/towers/layers/*-base.png` / `*-head.png`: the first four towers, drawn from the
   user's tower reference (`towers2/ref/towers.jpg`). Each has a static base layer and a weapon / top layer the game can
   turn or animate:
@@ -20,7 +21,7 @@ prototype (`prototype/neon-wasteland.html`, one file, open it in a browser).
 
 ## How it's made
 
-Everything is drawn in code (SVG) with one shared kit, so the map and the towers share ink weight, lighting (from
+The towers (and the earlier map) are drawn in code (SVG) with one shared kit, so they share ink weight, lighting (from
 the upper-left) and texture:
 
 | File | What it is |

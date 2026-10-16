@@ -1,6 +1,6 @@
 """Trace the enemy routes along the true middle of the painted road.
 
-1. Road mask from the map's sand colour (sampled along the rough routes).
+1. Road mask from the painted road's colour (Map v3: dusty sand, darker and grainier than the old map's).
 2. Distance to the road edge for every road pixel.
 3. Cheapest path from each gate to the AEGIS gate, where stepping near an edge
    costs a lot: the path follows the road's centre line (its "ridge").
@@ -11,10 +11,14 @@ Prints the new waypoints and writes an overlay image for checking.
 import sys, json, heapq
 import numpy as np, cv2
 
-ROUGH = {   # start (top edge, inside each gate) and end (the AEGIS gate); the path between is searched
-    'L': [[150, 2], [885, 720]],
-    'R': [[1320, 2], [885, 720]],
+# Where each road comes in: hand-checked against the painting from the top edge through the gate (the gates' posts
+# and beacons break the colour mask there), then searched from its last point to the AEGIS gate.
+ENTRY = {
+    'L': [[174, -30], [176, 40], [182, 80], [196, 118], [214, 140]],
+    'R': [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1284, 122]],
 }
+END = [880, 548]   # where the road meets the AEGIS gate
+ROUGH = {k: [v[-1], END] for k, v in ENTRY.items()}
 img = cv2.resize(cv2.imread(sys.argv[1]), (1672, 941), interpolation=cv2.INTER_AREA)
 lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
 H, W = img.shape[:2]
@@ -26,15 +30,14 @@ def dens(pts, step=4):
         out += [(x1 + (x2 - x1) * k / n, y1 + (y2 - y1) * k / n) for k in range(n)]
     return out + [tuple(pts[-1])]
 
-# The road is the brightest surface on the map (lightness ~215; everything off it is <= ~165).
-lab = cv2.cvtColor(cv2.GaussianBlur(img, (0, 0), 2), cv2.COLOR_BGR2LAB).astype(np.float32)
-mask = ((lab[..., 0] > 188) & (lab[..., 2] > 148)).astype(np.uint8)
+# The road is lit sand: lightness 128+ (rocks are darker), neither green (acid) nor magenta (neon), warm (b > 146).
+lab = cv2.cvtColor(cv2.GaussianBlur(img, (0, 0), 3), cv2.COLOR_BGR2LAB).astype(np.float32)
+mask = ((lab[..., 0] > 128) & (lab[..., 1] > 132) & (lab[..., 1] < 152) & (lab[..., 2] > 146)).astype(np.uint8)
 k5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)), iterations=2)
 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k5)
-mask[:3, :] = mask[3:6, :].max(0)   # the road runs off the top edge
 _, lbl = cv2.connectedComponents(mask)
-mask = (lbl == lbl[360, 885]).astype(np.uint8)   # keep only the road network joined to the junction
+mask = (lbl == lbl[470, 880]).astype(np.uint8)   # keep only the road network joined to the junction
 dt = cv2.distanceTransform(mask, cv2.DIST_L2, 5)
 
 S = 2  # work on a half-resolution grid
@@ -88,8 +91,9 @@ res = {}
 for k, p in ROUGH.items():
     path = smooth(route(p[0], p[-1]))
     pts = simplify(path)
-    pts.insert(0, [pts[0][0], -30])     # start off the top edge, straight down into the gate
-    pts.append([885, 720])              # into the AEGIS gate (Layout v2: the half-size HQ, further down)
+    pts = ENTRY[k][:-1] + pts           # in from the top edge through the gate
+    while np.hypot(pts[-1][0] - END[0], pts[-1][1] - END[1]) < 8: pts.pop()
+    pts.append(END)                     # into the AEGIS gate
     res[k] = pts
 # road half-width along each route (for the enemies' sideways spread)
 for k in list(res):
@@ -100,4 +104,4 @@ ov = img.copy()
 ov[mask > 0] = (ov[mask > 0] * 0.65 + np.array([255, 0, 255]) * 0.35).astype(np.uint8)
 for k, col in (('L', (0, 255, 0)), ('R', (0, 255, 255))):
     cv2.polylines(ov, [np.array(res[k], np.int32)], False, col, 3)
-cv2.imwrite(sys.argv[2], ov[0:780, 100:1400])
+cv2.imwrite(sys.argv[2], ov[0:620, 100:1480])

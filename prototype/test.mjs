@@ -25,7 +25,8 @@ if (mode === 'ui') {
   await p.click('#btnPlay');
   await p.waitForTimeout(200);
   const tapWorld = async (x, y) => { const [sx, sy] = await p.evaluate(([x, y]) => window.__NW.toScreen(x, y), [x, y]); await p.mouse.click(sx, sy); await p.waitForTimeout(60); };
-  await tapWorld(458, 162);               // open pad 1 menu
+  const pad1 = await p.evaluate(() => window.__NW.PADS[0]);
+  await tapWorld(pad1.x, pad1.y);         // open pad 1 menu
   await p.screenshot({ path: 'shots/02-menu.png' });
   const btns = await p.evaluate(() => { const S = window.__NW.S; return null; });
   // the build buttons: read positions from the game's menu logic via a tap on the first (sniper)
@@ -39,7 +40,7 @@ if (mode === 'ui') {
   await p.evaluate(() => { const N = window.__NW; N.build(1, 'plasma'); N.build(2, 'garrison'); N.startWave(); N.step(14); });
   await p.waitForTimeout(150);
   await p.screenshot({ path: 'shots/04-wave1.png' });
-  await p.evaluate(() => { const N = window.__NW; N.S.gold += 2000; N.build(3, 'railgun'); ['dragon', 'sniper', 'plasma', 'garrison', 'railgun', 'plasma'].forEach((k, j) => N.build(4 + j, k)); for (let i = 0; i < 10; i++) { N.upgrade(i); if (i < 4) N.upgrade(i); } while (N.S.wave < 6) { N.startWave(); N.step(6); } N.step(12); N.castAir(700, 262); N.step(0.7); });
+  await p.evaluate(() => { const N = window.__NW; N.S.gold += 2000; N.build(3, 'railgun'); for (let i = 0; i < 4; i++) { N.upgrade(i); N.upgrade(i); } while (N.S.wave < 6) { N.startWave(); N.step(6); } N.step(12); N.castAir(700, 262); N.step(0.7); });
   await p.waitForTimeout(150);
   await p.screenshot({ path: 'shots/05-wave6.png' });
   // phone landscape

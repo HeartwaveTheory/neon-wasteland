@@ -1,5 +1,7 @@
 # Layout v2: smaller pads, more of them, a smaller HQ and a longer road
 
+**Replaced by Map v3** (issue #4): the game now uses the painted map with its 4 pads and full-size HQ.
+
 **Built** (issue #2): `layers/pads.mjs`, `layers/hq.mjs` (the compound is scaled in `build()`; `roadOn` paints the new
 stretch), `layers/power.mjs` (the first pylon of each line moved onto the plaza so the spans clear pads 9 and 10),
 `layers/props.mjs` (the red wreck moved off pad 8) and `layers/roads.mjs`; the game's pads, HQ, routes and balance.
