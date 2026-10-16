@@ -1,5 +1,6 @@
 // Visual check: a crowd of every enemy type walking both routes with no towers in the way.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1672, height: 941 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));

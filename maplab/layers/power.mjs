@@ -3,10 +3,13 @@
 // West: over the forest to the CHOP SHOP, where the bandits have tapped it
 // (a sagging stolen cable with a sign).
 import { P, MP, f } from '../mapkit.mjs';
+import { hqPt } from './hq.mjs';
 
 // [x, yBot, h] in 2x map px.
-const EAST = [[2300, 1086, 230], [2840, 1064, 236], [3240, 968, 240]];
-const WEST = [[1200, 1124, 226], [800, 1200, 232]];
+// The first pylon of each line stands on the HQ plaza (Layout v2), so the spans from the half-size HQ pass below
+// pads 9 and 10 instead of over them.
+const EAST = [[2240, 1440, 230], [2840, 1064, 236], [3240, 968, 240]];
+const WEST = [[1300, 1440, 226], [800, 1200, 232]];
 
 // Arm tips (4 insulators) of a pylon, matching mapkit.pylon's geometry.
 function tips([x, yBot, h], w = 70) {
@@ -32,14 +35,14 @@ export default {
       }
       // east line: HQ antenna tower crossarm -> pylons -> off the right edge
       const e = EAST.map((p) => tips(p));
-      const start = [[2058, 1088], [2062, 1120]];
+      const start = [[2058, 1088], [2062, 1120]].map(hqPt);   // on the half-size HQ (hq.mjs, Layout v2)
       s += K.powerline([start[0], e[0].hiL, e[1].hiL, e[2].hiL, [3344, 700]], { sag: 34 });
       s += K.powerline([start[1], e[0].loL, e[1].loL, e[2].loL, [3344, 740]], { sag: 40 });
       s += K.powerline([e[0].hiR, e[1].hiR, e[2].hiR, [3344, 780]], { sag: 30 });
       // west line: HQ west wing roof -> pylons -> the chop shop's stolen tap
       const w = WEST.map((p) => tips(p));
-      s += K.powerline([[1420, 1160], w[0].hiR, w[1].hiR, [600, 1222]], { sag: 36 });
-      s += K.powerline([[1426, 1176], w[0].loR, w[1].loR], { sag: 42 });
+      s += K.powerline([hqPt([1420, 1160]), w[0].hiR, w[1].hiR, [600, 1222]], { sag: 36 });
+      s += K.powerline([hqPt([1426, 1176]), w[0].loR, w[1].loR], { sag: 42 });
       s += K.powerline([w[0].hiL, w[1].hiL, [420, 1080]], { sag: 30 });
       // the bandits' tap: a crude clamp box on the line's end with a skull tag
       s += K.box({ x: 586, y: 1238, w: 26, h: 20, d: 14, tones: MP.rustmetal, stroke: 3 });

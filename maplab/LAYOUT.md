@@ -1,5 +1,9 @@
 # Layout v2: smaller pads, more of them, a smaller HQ and a longer road
 
+**Built** (issue #2): `layers/pads.mjs`, `layers/hq.mjs` (the compound is scaled in `build()`; `roadOn` paints the new
+stretch), `layers/power.mjs` (the first pylon of each line moved onto the plaza so the spans clear pads 9 and 10),
+`layers/props.mjs` (the red wreck moved off pad 8) and `layers/roads.mjs`; the game's pads, HQ, routes and balance.
+
 The user asked: **shrink the build pads so at least 3 more fit comfortably, and shrink the end building (the AEGIS HQ)
 so enemies walk further before they reach the end.** Coordinates: **1x** = the game's logical map (1672 × 941),
 **2x** = the map art (3344 × 1882). Ground distances use the game's ellipse metric (`edist`: dy divided by 0.7).

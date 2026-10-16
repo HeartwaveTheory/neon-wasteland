@@ -1,45 +1,58 @@
 // Bot playtests: several strategies, full 10-wave games at simulation speed.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto('file://' + process.cwd() + '/dist/_test.html');
 await page.waitForFunction(() => window.__NW);
+// Layout v2 has 10 pads. Bots fill them the way a good player does: around the junction first (2, 7, 1), then the
+// shared stretch to the HQ (9) and the rest. A plan lists the towers for the first pads in that order (its length is
+// how many pads the bot uses); the bot builds each as soon as it can afford it, then spends everything on the cheapest
+// upgrade. Run: node sim.mjs [runs] [strategy,strategy,...]
+const PAD_ORDER = [1, 6, 0, 8, 2, 5, 9, 3, 4, 7];   // pads 2, 7, 1, 9, 3, 6, 10, 4, 5, 8 (0-based)
+const MIX6 = ['plasma', 'plasma', 'garrison', 'sniper', 'railgun', 'plasma'];
+const MIX10 = [...MIX6, 'sniper', 'railgun', 'plasma', 'garrison'];
+const all = (k, n = 10) => Array(n).fill(k);
 const STRATS = {
-  mixed:      { plan: ['plasma', 'plasma', 'garrison', 'sniper'], spells: true },
-  mixed_nosp: { plan: ['plasma', 'plasma', 'garrison', 'sniper'], spells: false },
-  snipers:    { plan: ['sniper', 'sniper', 'sniper', 'sniper'], spells: true },
-  plasma:     { plan: ['plasma', 'plasma', 'plasma', 'plasma'], spells: true },
-  rail_gar:   { plan: ['garrison', 'railgun', 'railgun', 'garrison'], spells: true },
-  railgun:    { plan: ['railgun', 'railgun', 'railgun', 'railgun'], spells: true },
-  garrisons:  { plan: ['garrison', 'garrison', 'garrison', 'garrison'], spells: true },
-  rail_plas:  { plan: ['plasma', 'plasma', 'railgun', 'railgun'], spells: true },
-  snip_rail:  { plan: ['sniper', 'plasma', 'railgun', 'sniper'], spells: true },
-  lazy:       { plan: ['sniper', 'plasma', 'garrison', 'railgun'], spells: false, noUpgrade: true },
-  // the Dragon (fire patches, ground only): one in a mixed build, dragon-heavy builds, builds with no anti-air
-  mix_drg:    { plan: ['plasma', 'plasma', 'dragon', 'sniper'], spells: true },     // the dragon instead of the garrison
-  mix_drg_ns: { plan: ['plasma', 'plasma', 'dragon', 'sniper'], spells: false },
-  gar_drg:    { plan: ['plasma', 'plasma', 'garrison', 'dragon'], spells: true },   // garrison holds them in the fire
-  drg_rail:   { plan: ['sniper', 'plasma', 'railgun', 'dragon'], spells: true },
-  drg_noairR: { plan: ['plasma', 'dragon', 'garrison', 'sniper'], spells: true },   // nothing hits drones on the right road
-  drg_plas:   { plan: ['plasma', 'dragon', 'dragon', 'plasma'], spells: true },
-  drg_pp:     { plan: ['plasma', 'plasma', 'dragon', 'dragon'], spells: true },
-  drg3:       { plan: ['dragon', 'dragon', 'dragon', 'plasma'], spells: true },
-  drg_gar:    { plan: ['garrison', 'dragon', 'dragon', 'garrison'], spells: true }, // no anti-air
-  dragons:    { plan: ['dragon', 'dragon', 'dragon', 'dragon'], spells: true },
+  mixed:      { plan: MIX6, spells: true },                                          // six towers, upgraded
+  mixed_nosp: { plan: MIX6, spells: false },
+  mixed4:     { plan: ['plasma', 'plasma', 'garrison', 'sniper'], spells: true },    // only four pads, as on the old map
+  mixed10:    { plan: MIX10, spells: true },                                         // every pad
+  mixed10_ns: { plan: MIX10, spells: false },
+  lazy:       { plan: MIX10, spells: false, noUpgrade: true },                       // every pad, never upgrades
+  lazy_sp:    { plan: MIX10, spells: true, noUpgrade: true },
+  // one tower type on every pad
+  snipers:    { plan: all('sniper'), spells: true },
+  plasma:     { plan: all('plasma'), spells: true },
+  railgun:    { plan: all('railgun'), spells: true },
+  garrisons:  { plan: all('garrison'), spells: true },
+  dragons:    { plan: all('dragon'), spells: true },
+  // pairs
+  rail_plas:  { plan: ['plasma', 'railgun', 'plasma', 'railgun', 'plasma', 'railgun'], spells: true },
+  snip_rail:  { plan: ['sniper', 'railgun', 'sniper', 'railgun', 'plasma', 'sniper'], spells: true },
+  // no anti-air: nothing hits drones
+  rail_gar:   { plan: ['garrison', 'railgun', 'railgun', 'garrison', 'railgun', 'dragon', 'railgun', 'garrison', 'dragon', 'railgun'], spells: true },
+  // the Dragon (fire patches, ground only)
+  mix_drg:    { plan: ['plasma', 'plasma', 'dragon', 'sniper', 'railgun', 'plasma'], spells: true },   // the dragon instead of the garrison
+  mix_drg_ns: { plan: ['plasma', 'plasma', 'dragon', 'sniper', 'railgun', 'plasma'], spells: false },
+  gar_drg:    { plan: ['plasma', 'plasma', 'garrison', 'dragon', 'sniper', 'plasma'], spells: true }, // garrison holds them in the fire
+  drg_heavy:  { plan: ['dragon', 'plasma', 'dragon', 'dragon', 'plasma', 'dragon'], spells: true },
 };
+const only = process.argv[3] ? process.argv[3].split(',') : null;
 const runs = Number(process.argv[2] || 3);
 for (const [name, st] of Object.entries(STRATS)) {
+  if (only && !only.includes(name)) continue;
   const res = [];
   for (let r = 0; r < runs; r++) {
-    res.push(await page.evaluate((st) => {
+    res.push(await page.evaluate(([st, PAD_ORDER]) => {
       const N = window.__NW; N.restart(); N.start(); const S = N.S;
-      const order = [0, 1, 2, 3];
+      const order = PAD_ORDER.slice(0, st.plan.length), kind = (i) => st.plan[order.indexOf(i)];
       let t = 0; const log = [];
       while (!S.over && t < 1200) {
         // build towers in plan order, then upgrade the cheapest upgrade
-        for (const i of order) if (!S.towers[i] && S.gold >= N.TOWERS[st.plan[i]].cost[0]) N.build(i, st.plan[i]);
-        if (!st.noUpgrade && S.towers.every(Boolean)) {
-          const ups = S.towers.map((tw, i) => (tw.lvl < 2 ? [N.TOWERS[tw.kind].cost[tw.lvl + 1], i] : null)).filter(Boolean).sort((a, b) => a[0] - b[0]);
+        for (const i of order) if (!S.towers[i] && S.gold >= N.TOWERS[kind(i)].cost[0]) N.build(i, kind(i));
+        if (!st.noUpgrade && order.every((i) => S.towers[i])) {
+          const ups = S.towers.map((tw, i) => (tw && tw.lvl < 2 ? [N.TOWERS[tw.kind].cost[tw.lvl + 1], i] : null)).filter(Boolean).sort((a, b) => a[0] - b[0]);
           if (ups.length && S.gold >= ups[0][0]) N.upgrade(ups[0][1]);
         }
         if (!S.started) N.startWave();
@@ -58,7 +71,7 @@ for (const [name, st] of Object.entries(STRATS)) {
         N.step(0.5); t += 0.5;
       }
       return { won: S.won, lives: S.lives, wave: S.wave, gold: S.gold, lvls: S.towers.map((tw) => tw ? tw.lvl + 1 : 0).join(''), t: Math.round(t), dmg: S.stats.dmg };
-    }, st));
+    }, [st, PAD_ORDER]));
   }
   const wins = res.filter((r) => r.won).length;
   // share of all damage dealt, per source (towers, troopers, spells), over every run

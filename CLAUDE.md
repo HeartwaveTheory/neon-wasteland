@@ -16,9 +16,11 @@ playable prototype (towers, enemies, spells, waves, balance).
   fonts embedded): the file testers play. Rebuild it after every change to `game.html` or `prototype/assets/`, and
   commit both.
 - It's a web app that plays in a phone's browser (TEAM.md, "Phone prototypes are web apps").
-- `prototype/README.md` names a build script (`build.py`), screenshot and bot-playtest scripts (`test.mjs`, `sim.mjs`,
-  `dragon-test.mjs`, `walk.mjs`) and `tools/trace_road.py`, but they aren't in the repo yet. Commit them (TEAM.md,
-  "Backups": push your work when you finish it).
+- `prototype/README.md` covers the build script (`build.py`), the screenshot and bot-playtest scripts (`test.mjs`,
+  `sim.mjs`, `dragon-test.mjs`, `leash.mjs`, `walk.mjs`) and `tools/trace_road.py`. The Node scripts find Playwright
+  through `$PLAYWRIGHT` (the path to its `index.mjs`).
+- The game's numbers are connected to the Game Tuner (`tuner.json`, `prototype/tuning.schema.json`). Change a tuned
+  number in `game.html` and the schema's `default` together; `node prototype/tuning-check.mjs` checks they match.
 
 ## Publishing
 

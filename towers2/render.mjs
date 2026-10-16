@@ -4,7 +4,8 @@
 //   node render.mjs --sheet         also the lineup (out/lineup.png) and the towers on the map (out/on-map.png)
 // Outputs go to out/. Review sheets (out/review/<id>.png) show the tower at full
 // size, at true game scale on one of the map's build pads, and at 2x on the pad.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import { readdirSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

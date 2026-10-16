@@ -4,7 +4,8 @@
 // (shots/16-dragon-aim.png); selling puts the fire out; the five-button build menu and the info panel on desktop, phones
 // and short landscape screens (shots/13-15, 19-21); the fire at the game's default camera (shots/17 desktop, 18 phone),
 // and a 2.3x close-up of it (shots/12-dragon.png). Run after build.py: node dragon-test.mjs
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import { mkdirSync } from 'node:fs';
 mkdirSync('shots', { recursive: true });
 const browser = await chromium.launch();

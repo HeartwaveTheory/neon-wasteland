@@ -12,8 +12,8 @@ import sys, json, heapq
 import numpy as np, cv2
 
 ROUGH = {   # start (top edge, inside each gate) and end (the AEGIS gate); the path between is searched
-    'L': [[150, 2], [884, 548]],
-    'R': [[1320, 2], [884, 548]],
+    'L': [[150, 2], [885, 720]],
+    'R': [[1320, 2], [885, 720]],
 }
 img = cv2.resize(cv2.imread(sys.argv[1]), (1672, 941), interpolation=cv2.INTER_AREA)
 lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
@@ -89,7 +89,7 @@ for k, p in ROUGH.items():
     path = smooth(route(p[0], p[-1]))
     pts = simplify(path)
     pts.insert(0, [pts[0][0], -30])     # start off the top edge, straight down into the gate
-    pts.append([884, 548])              # into the AEGIS gate
+    pts.append([885, 720])              # into the AEGIS gate (Layout v2: the half-size HQ, further down)
     res[k] = pts
 # road half-width along each route (for the enemies' sideways spread)
 for k in list(res):
@@ -100,4 +100,4 @@ ov = img.copy()
 ov[mask > 0] = (ov[mask > 0] * 0.65 + np.array([255, 0, 255]) * 0.35).astype(np.uint8)
 for k, col in (('L', (0, 255, 0)), ('R', (0, 255, 255))):
     cv2.polylines(ov, [np.array(res[k], np.int32)], False, col, 3)
-cv2.imwrite(sys.argv[2], ov[0:600, 100:1400])
+cv2.imwrite(sys.argv[2], ov[0:780, 100:1400])

@@ -147,14 +147,17 @@ const TS = SPR / 0.46;        // tower effects scale with the sprite
 const INK = '#120d09';
 
 // ---------------------------------------------------------------- map data
-const PADS = [{ x: 458, y: 162 }, { x: 1025, y: 218 }, { x: 548, y: 345 }, { x: 1197, y: 362 }];
-const HQ = { x: 884, y: 548 };
+// Layout v2 (maplab/LAYOUT.md): 10 smaller pads (1-4 the old ones, 5-10 new) and the half-size AEGIS HQ further down.
+const PADS = [{ x: 458, y: 162 }, { x: 1025, y: 218 }, { x: 548, y: 345 }, { x: 1197, y: 362 }, { x: 185, y: 205 },
+  { x: 1118, y: 165 }, { x: 655, y: 322 }, { x: 330, y: 330 }, { x: 775, y: 630 }, { x: 995, y: 630 }];
+const PAD_TAP = { rx: 50, ry: 27 };   // a pad's tap area (its drawn slab is rx 44 / ry 22)
+const HQ = { x: 885, y: 720 };
 // Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate.
-const ROUTE_L = [[145, -30], [145, 11], [157, 29], [174, 45], [188, 63], [203, 81], [221, 94], [242, 105], [259, 123], [275, 139], [288, 157], [299, 177], [315, 195], [331, 211], [349, 227], [371, 236], [391, 246], [413, 250], [435, 251], [457, 255], [479, 255], [501, 255], [523, 255], [545, 249], [567, 243], [589, 243], [611, 242], [633, 239], [655, 238], [677, 237], [699, 237], [721, 238], [743, 248], [763, 257], [783, 270], [803, 281], [823, 295], [839, 311], [855, 327], [870, 343], [884, 361], [887, 383], [887, 405], [886, 427], [885, 449], [885, 471], [885, 493], [885, 515], [885, 523], [884, 548]];
-const ROUTE_R = [[1283, -30], [1283, 83], [1274, 105], [1262, 125], [1250, 145], [1238, 165], [1237, 187], [1231, 209], [1215, 227], [1197, 241], [1177, 252], [1155, 259], [1133, 265], [1111, 274], [1089, 281], [1067, 288], [1047, 297], [1030, 311], [1015, 329], [997, 343], [975, 350], [953, 357], [933, 367], [915, 383], [899, 401], [888, 421], [885, 443], [885, 465], [885, 487], [885, 509], [885, 523], [884, 548]];
+const ROUTE_L = [[145, -30], [145, 11], [157, 29], [174, 45], [188, 63], [203, 81], [221, 94], [242, 105], [259, 123], [275, 139], [288, 157], [299, 177], [315, 195], [331, 211], [349, 227], [371, 236], [391, 246], [413, 250], [435, 251], [457, 255], [479, 255], [501, 255], [523, 255], [545, 249], [567, 243], [589, 243], [611, 242], [633, 239], [655, 238], [677, 237], [699, 237], [721, 238], [743, 248], [763, 257], [783, 270], [803, 281], [823, 295], [839, 311], [855, 327], [870, 343], [884, 361], [887, 383], [887, 405], [886, 427], [885, 449], [885, 471], [885, 493], [885, 515], [886, 533], [886, 555], [886, 577], [886, 599], [885, 621], [885, 643], [885, 665], [885, 687], [885, 705], [885, 720]];
+const ROUTE_R = [[1283, -30], [1283, 83], [1274, 105], [1262, 125], [1250, 145], [1238, 165], [1237, 187], [1231, 209], [1215, 227], [1197, 241], [1177, 252], [1155, 259], [1133, 265], [1111, 274], [1089, 281], [1067, 288], [1047, 297], [1030, 311], [1015, 329], [997, 343], [975, 350], [953, 357], [933, 367], [915, 383], [899, 401], [888, 421], [885, 443], [885, 465], [885, 487], [885, 509], [886, 521], [886, 543], [886, 565], [886, 587], [886, 609], [885, 631], [885, 653], [885, 675], [885, 697], [885, 705], [885, 720]];
 // Road half-width at each route point: enemies spread sideways only where the road is wide enough.
-const HALFW_L = [0.0, 1.0, 5.0, 14.0, 20.4, 12.4, 14.2, 13.2, 21.8, 19.0, 26.6, 34.0, 26.8, 28.4, 25.0, 26.2, 26.4, 22.6, 22.0, 25.6, 26.0, 25.8, 29.0, 26.2, 27.2, 31.0, 31.8, 27.2, 23.0, 25.0, 28.2, 30.6, 29.8, 28.2, 26.2, 30.0, 26.8, 35.2, 34.6, 32.6, 35.2, 28.6, 27.0, 29.6, 28.6, 31.4, 30.0, 8.0, 0.0, 0.0];
-const HALFW_R = [0.0, 1.0, 12.2, 5.8, 10.8, 12.6, 14.0, 15.0, 16.8, 18.6, 17.4, 19.4, 24.0, 26.0, 22.6, 17.0, 12.0, 13.0, 16.8, 18.6, 8.6, 18.4, 22.8, 26.6, 33.6, 30.6, 28.0, 30.2, 36.0, 14.0, 0.0, 0.0];
+const HALFW_L = [0.0, 1.0, 5.0, 14.0, 20.4, 12.4, 14.2, 13.2, 21.8, 19.0, 26.6, 34.0, 26.8, 28.4, 25.0, 26.2, 26.4, 22.6, 22.0, 25.6, 26.0, 25.8, 29.0, 26.2, 27.2, 31.0, 31.8, 27.2, 23.0, 25.0, 28.2, 30.6, 29.8, 28.2, 26.2, 30.0, 26.8, 35.2, 34.6, 32.6, 35.2, 28.6, 27.0, 29.6, 28.6, 31.4, 30.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 18.0, 0.0, 0.0];
+const HALFW_R = [0.0, 1.0, 12.2, 5.8, 10.8, 12.6, 14.0, 15.0, 16.8, 18.6, 17.4, 19.4, 24.0, 26.0, 22.6, 17.0, 12.0, 13.0, 16.8, 18.6, 8.6, 18.4, 22.8, 26.6, 33.6, 30.6, 28.0, 30.2, 36.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 29.0, 8.0, 0.0, 0.0];
 const GATES = { L: { x: 150, y: 40 }, R: { x: 1283, y: 40 } };
 
 function makePath(pts, halfw) {
@@ -204,28 +207,28 @@ const aimY = (e) => e.y - (e.def.air ? HOVER : e.def.h * 0.5);
 // ---------------------------------------------------------------- towers
 const TOWERS = {
   sniper: {
-    name: 'Sniper', cost: [90, 110, 160], range: [300, 330, 360], dmg: [32, 52, 80], rate: [1.7, 1.5, 1.3], air: true,
+    name: 'Sniper', cost: [90, 110, 160], range: [300, 330, 360], dmg: [28, 52, 86], rate: [1.7, 1.5, 1.3], air: true,
     dtype: 'phys', glow: '#a35cff', blurb: 'Long range, heavy single shots. Hits flyers. Weak against armour.',
     head: { pivot: [268, 110], muzzle: [384.6, 89.2], faces: 1 },
   },
   plasma: {
-    name: 'Plasma', cost: [110, 140, 200], range: [230, 250, 270], dmg: [14, 21, 31], chain: [3, 4, 5], rate: [1.15, 1.05, 0.95], air: true,
+    name: 'Plasma', cost: [110, 140, 200], range: [230, 250, 270], dmg: [12, 21, 33], chain: [3, 4, 5], rate: [1.15, 1.05, 0.95], air: true,
     dtype: 'energy', glow: '#3ff0ff', blurb: 'Chain lightning that jumps between enemies. Ignores armour. Hits flyers.',
     head: { pivot: [256, 160], muzzle: [256, 44], faces: 0 },
   },
   railgun: {
-    name: 'Railgun', cost: [120, 150, 220], range: [280, 300, 320], dmg: [90, 150, 230], rate: [2.6, 2.4, 2.2], air: false,
+    name: 'Railgun', cost: [120, 150, 220], range: [280, 300, 320], dmg: [80, 150, 240], rate: [2.6, 2.4, 2.2], air: false,
     dtype: 'pierce', glow: '#ff8a1e', blurb: 'Slow piercing shot through every enemy in a line. Ground only.',
     head: { pivot: [270, 150], muzzle: [113, 135], faces: -1 },
   },
   garrison: {
-    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
+    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [80, 140, 210], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
     respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers hold the road near their rally point and never leave the tower\'s range. Tap Rally to move them.',
     head: { pivot: [256, 162], muzzle: [178, 429], faces: 0 },
   },
   dragon: {
     name: 'Dragon', cost: [110, 150, 210], range: [210, 225, 240], dmg: [10, 16, 24], rate: [2.4, 2.2, 2.0], air: false,
-    patchR: [30, 36, 42], patchLife: [4, 5, 6], burn: [18, 26, 36],   // burn per second (spec started at 12/18/26; tuned with sim.mjs)
+    patchR: [30, 36, 42], patchLife: [4, 5, 6], burn: [16, 26, 38],   // burn per second (spec started at 12/18/26; tuned with sim.mjs)
     dtype: 'fire', glow: '#ff3fa4', blurb: 'Spits napalm that sets the road on fire for a few seconds. Fire burns through armour. Ground only.',
     // from towers2/towers/dragon.mjs: the pivot is the top of the neck, the muzzle is the mouth (the head faces left, like the railgun)
     head: { pivot: [272, 176], muzzle: [110.5, 194.8], faces: -1 },
@@ -256,7 +259,9 @@ const WAVES = [
   [{ t: 'enforcer', n: 7, g: 'L', every: 2.2 }, { t: 'enforcer', n: 5, g: 'R', every: 2.6, delay: 3 }, { t: 'drone', n: 12, g: 'L', every: 0.8, delay: 5 }, { t: 'scout', n: 12, g: 'R', every: 0.5, delay: 10 }],
   [{ t: 'mech', n: 1, g: 'L', delay: 4 }, { t: 'raider', n: 14, g: 'R', every: 0.8 }, { t: 'enforcer', n: 4, g: 'L', every: 3, delay: 10 }, { t: 'drone', n: 10, g: 'R', every: 1, delay: 14 }],
 ];
-const START_GOLD = 300, START_LIVES = 20, WAVE_GAP = 20;
+// Layout v2's 10 pads made filling every pad with level-1 towers too strong, so level 1 hits a little softer and
+// level 3 harder (the damage, burn and trooper numbers above), and the start is 20 scrap leaner (sim.mjs).
+const START_GOLD = 280, START_LIVES = 20, WAVE_GAP = 20;
 const HP_PER_WAVE = 0.05, BOUNTY = 0.85;   // enemy health +5% per wave; bounties scaled
 const SPELLS = {
   air: { cd: 40, dmg: 75, radius: 46, missiles: 3 },
@@ -1303,7 +1308,7 @@ function drawAmbient() {
     glowDot(g.x, g.y - 6, 70 + p * 20, `rgba(255,40,50,${danger ? 0.22 + p * 0.18 : 0.08})`);
   }
   glowDot(865, 150, 90, `rgba(150,255,60,${0.08 + 0.05 * Math.sin(S.t * 1.7)})`);
-  glowDot(884, 548, 70, `rgba(63,240,255,${0.1 + 0.06 * Math.sin(S.t * 2.3)})`);
+  glowDot(HQ.x, HQ.y, 50, `rgba(63,240,255,${0.1 + 0.06 * Math.sin(S.t * 2.3)})`);
   ctx.restore();
 }
 function drawRange(x, y, r, color) {
@@ -1319,7 +1324,7 @@ function drawPadHints() {
     const p = PADS[i], a = 0.35 + 0.25 * Math.sin(S.t * 3 + i);
     const sel = S.sel && S.sel.pad === i;
     ctx.strokeStyle = sel ? '#ffd23a' : `rgba(63,240,255,${a})`; ctx.lineWidth = sel ? 4 : 3;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, 92, 46, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, PAD_TAP.rx, PAD_TAP.ry, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
 function render() {
@@ -1573,7 +1578,7 @@ function onWheel(ev) {
 function padAt(wx, wy) {
   for (let i = 0; i < PADS.length; i++) {
     const p = PADS[i];
-    const inPad = ((wx - p.x) / 96) ** 2 + ((wy - p.y) / 50) ** 2 <= 1;
+    const inPad = ((wx - p.x) / PAD_TAP.rx) ** 2 + ((wy - p.y) / PAD_TAP.ry) ** 2 <= 1;
     const inTower = S.towers[i] && Math.abs(wx - p.x) < Math.max(40, 62 * TS) && wy < p.y && wy > p.y - Math.max(110, 190 * TS);
     if (inPad || inTower) return i;
   }

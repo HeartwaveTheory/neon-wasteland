@@ -1,5 +1,6 @@
 // Visual check: a zoomed fight on the left road with every unit type on screen.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));

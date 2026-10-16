@@ -13,7 +13,7 @@
 //
 // Owner: hq. Coordinates are 2x map px. Light: upper-left; depth recedes up-right
 // (kit convention: depth d -> 0.22 d right, 0.5 d up).
-import { P, MP, f } from '../mapkit.mjs';
+import { P, MP, f, MW, MH } from '../mapkit.mjs';
 
 const CY = P.shock;            // friendly cyan (HQ)
 const AMB = MP.amber;
@@ -40,6 +40,14 @@ const P3 = (x, y, z = 0, h = 0) => [x + 0.22 * z, y - 0.5 * z - h];
 const lerp = (a, b, t) => a + (b - a) * t;
 
 // ------------------------------------------------------------ layout
+// Layout v2 (LAYOUT.md): the whole compound is drawn at half size and moved down, p' = A + S·(p − A0), so the road
+// runs on through the plaza and enemies walk further. A0 = where the road met the HQ (the top of the AEGIS gantry).
+// Everything below is drawn in the old full-size coordinates and transformed in build(); the erase polygon and the
+// plaza's sand dressing stay full size, so the space the HQ gives up becomes open plaza.
+export const HQ_S = 0.5, HQ_A0 = [1770, 1096], HQ_A = [1770, 1440];
+export const hqPt = ([x, y]) => [HQ_A[0] + HQ_S * (x - HQ_A0[0]), HQ_A[1] + HQ_S * (y - HQ_A0[1])];
+const INK_K = 1.4;   // line work inside the half-size compound: 1.4 x 0.5 = 0.7 of the map's weight
+const HQ_T = `translate(${HQ_A[0] - HQ_S * HQ_A0[0]} ${HQ_A[1] - HQ_S * HQ_A0[1]}) scale(${HQ_S})`;
 export const HQ = {
   gate: { x0: 1606, x1: 1934, y: 1258, cx: 1770, wh: 104, wd: 72 },
   main: { x: 1500, y: 1496, w: 540, h: 132, d: 136 },
@@ -736,8 +744,9 @@ const ERASE = [[1150, 1235], [1330, 1215], [1420, 1150], [1560, 1135], [1690, 10
   [2345, 1215], [2350, 1450], [2250, 1470], [2240, 1740], [1880, 1745], [1650, 1720], [1255, 1725], [1240, 1460], [1150, 1455]];
 function dressing(K) {
   let s = '';
-  const cid = K.id('hqd');
-  K.def(`<clipPath id="${cid}"><polygon points="${pts(ERASE)}"/></clipPath>`);
+  // clipped to the old footprint, minus the road's corridor (the road stays clean packed sand: see roadOn)
+  const cid = K.id('hqd'), cw = ROAD_HW + 6;
+  K.def(`<clipPath id="${cid}"><path clip-rule="evenodd" d="${dpoly(ERASE)} M${ROAD_X - cw} 900 H${ROAD_X + cw} V${ROAD_Y1 + 40} H${ROAD_X - cw}Z"/></clipPath>`);
   const fid = K.id('hqdb');
   K.def(`<filter id="${fid}" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>`);
   let mot = '';
@@ -768,12 +777,50 @@ function dressing(K) {
     s += `<path d="${t}" stroke="#6c6a33" stroke-width="2" fill="none" opacity=".8"/>`;
   }
   s += '</g>';
-  // tyre tracks: the supply road south, into the garage, and churned dirt at the gate
+  return s;
+}
+// Tyre tracks and oil stains that belong to the compound (scaled with it): the supply road south, into the garage,
+// and churned dirt at the gate.
+function yard(K) {
+  let s = '';
   s += K.tracks('M1770 1642 C1772 1690 1782 1730 1792 1780', { w: 16, op: 0.25 });
   s += K.tracks('M1870 1626 C1930 1660 1990 1700 2060 1740', { w: 14, op: 0.2 });
   s += K.tracks('M1716 1100 C1722 1160 1730 1210 1736 1258', { w: 12, op: 0.18 });
   s += K.tracks('M1820 1100 C1814 1160 1808 1210 1806 1258', { w: 12, op: 0.18 });
   s += K.stain(1640, 1590, 24, '#1b1612', 0.4) + K.stain(1990, 1760, 26, '#1b1612', 0.35) + K.stain(1500, 1630, 20, '#1b1612', 0.3);
+  return s;
+}
+
+// The road on through the plaza (Layout v2): from where it used to end, straight down to the new AEGIS gate. Its
+// surface is the plaza's clean packed sand, the same colour as the painted road (dressing() leaves the corridor
+// bare, so it stays the brightest surface and tools/trace_road.py follows it); here it gets darker churned shoulders
+// (the tyre tracks and reflector posts come from roads.mjs, which runs on to the gate). Ground drawn in a layer takes
+// the paint filter's grain, so the shoulders are kept translucent.
+const ROAD_X = 1770, ROAD_Y0 = 960, ROAD_Y1 = hqPt([0, 1258])[1] - 6, ROAD_HW = 58;
+function roadOn(K) {
+  const fid = K.id('hqroad'), gid = K.id('hqroadfade'), mid = K.id('hqroadm');
+  K.def(`<filter id="${fid}" x="-40%" y="-10%" width="180%" height="120%"><feGaussianBlur stdDeviation="5"/></filter>`);
+  // fade in from the old road end, so there's no seam where it meets the painted road
+  K.def(`<linearGradient id="${gid}" x1="0" y1="${ROAD_Y0}" x2="0" y2="${ROAD_Y0 + 110}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient>`);
+  K.def(`<mask id="${mid}" maskUnits="userSpaceOnUse" x="0" y="0" width="${MW}" height="${MH}"><rect x="0" y="${ROAD_Y0}" width="${MW}" height="${ROAD_Y1 - ROAD_Y0 + 40}" fill="url(#${gid})"/></mask>`);
+  // a ragged band between x0 and x1 (offsets from the road's centre line)
+  const band = (x0, x1, jag) => {
+    const L = [], R = [];
+    for (let y = ROAD_Y0; y <= ROAD_Y1 + 0.1; y += 20) { L.push([ROAD_X + x0 + K.rand(-jag, jag), y]); R.push([ROAD_X + x1 + K.rand(-jag, jag), y]); }
+    return `M${[...L, ...R.reverse()].map(([x, y]) => `${f(x)} ${f(y)}`).join(' L')}Z`;
+  };
+  let s = `<g mask="url(#${mid})">`;
+  for (const side of [-1, 1]) {
+    const o = (a, b) => (side < 0 ? [-b, -a] : [a, b]);
+    s += `<path d="${band(...o(ROAD_HW - 2, ROAD_HW + 34), 7)}" fill="${SAND[1]}" opacity=".5" filter="url(#${fid})"/>`;
+    s += `<path d="${band(...o(ROAD_HW + 1, ROAD_HW + 12), 3)}" fill="${SAND[3]}" opacity=".35" filter="url(#${fid})"/>`;
+  }
+  s += '</g>';
+  // pebbles kicked onto the shoulders
+  for (let k = 0; k < 44; k++) {
+    const side = K.r() < 0.5 ? -1 : 1, x = ROAD_X + side * K.rand(ROAD_HW + 2, ROAD_HW + 26), y = K.rand(ROAD_Y0 + 80, ROAD_Y1), r = K.rand(1.4, 3.2);
+    s += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(r)}" ry="${f(r * 0.65)}" fill="${P.ink}" opacity=".5"/>`;
+  }
   return s;
 }
 
@@ -805,18 +852,27 @@ export default {
     objects += K.part('hq-truck', () => truck(K, 1990, 1736));
     objects += K.part('hq-cables', () => K.cable(1254, 1484, 1500, 1374, 34, 3.2) + K.cable(1218, 1484, 1290, 1628, 24, 3) + K.cable(2282, 1478, 2190, 1406, 26, 3.2) + K.cable(2318, 1478, 2200, 1590, 22, 3));
 
-    let ground = '';
-    // unify the inpainted sand (low contrast, matched to the base), then shadows
-    ground += dressing(K);
-    ground += forecourt(K);
+    // unify the inpainted sand (low contrast, matched to the base, full size), the road on through the plaza, then
+    // the compound's own ground and shadows (scaled)
+    let ground = dressing(K) + roadOn(K);
+    let yardG = yard(K) + forecourt(K);
     const fid = K.id('hqsh');
     K.def(`<filter id="${fid}" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="5"/></filter>`);
-    ground += `<g filter="url(#${fid})" opacity=".5">${SHADOWS.map((sh) => poly(sh.p, SHADOW, 0)).join('')}</g>`;
+    yardG += `<g filter="url(#${fid})" opacity=".5">${SHADOWS.map((sh) => poly(sh.p, SHADOW, 0)).join('')}</g>`;
+    ground += `<g transform="${HQ_T}">${yardG}</g>`;
 
     // light
     K.lightPool(1770, 1560, 170, 50, CY, 0.3);
     K.haze(1770, 1330, 330, 150, CY, 0.06);
     K.lightPool(1770, 1268, 130, 30, CY, 0.25);
+    K.lights = [`<g transform="${HQ_T}">${K.lights.join('')}</g>`];
+
+    // At half size the ink keeps the map's weight: the outline is dilated in map px (its own filter, radius / S), and
+    // the line work inside is thickened a little so it doesn't go hairline.
+    K.def(`<filter id="outlineHQ" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feMorphology in="SourceAlpha" operator="dilate" radius="${3.2 / HQ_S}" result="d"/><feFlood flood-color="${P.ink}"/><feComposite in2="d" operator="in" result="o"/><feMerge><feMergeNode in="o"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`);
+    objects = objects.replace(/filter="url\(#outline\)"/g, 'filter="url(#outlineHQ)"')
+      .replace(/stroke-width="([\d.]+)"/g, (m, w) => `stroke-width="${f(Number(w) * INK_K)}"`);
+    objects = `<g transform="${HQ_T}">${objects}</g>`;
     return { ground, objects, light: '' };
   },
 };

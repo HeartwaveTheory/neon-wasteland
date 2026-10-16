@@ -10,7 +10,7 @@ export default {
   build(K) {
     let ground = '';
     // dirt scuffs under the props so they sit on the land
-    for (const [x, y, rx] of [[1170, 252, 90], [1510, 884, 92], [2030, 892, 92], [600, 610, 80], [2480, 590, 80]]) ground += K.ao(x + 8, y, rx, rx * 0.3, 0.32);
+    for (const [x, y, rx] of [[1170, 252, 90], [1510, 884, 92], [2030, 892, 92], [529, 606, 80], [2480, 590, 80]]) ground += K.ao(x + 8, y, rx, rx * 0.3, 0.32);
 
     const objects = K.part('props', () => {
       let s = '';
@@ -20,9 +20,9 @@ export default {
       // wreck on the right road's shoulder, below the right gate
       s += K.wreck(2430, 600, { w: 112, color: 'blue', flip: false });
       s += K.tyre(2560, 596, 12) + K.drum(2400, 600, 11);
-      // wreck below the left road, near pad 3
-      s += K.wreck(540, 616, { w: 118, color: 'red', flip: false });
-      s += K.tyre(668, 612, 12) + K.tyre(684, 606, 11);
+      // wreck below the left road, just left of pad 8 (its tyres on the far side, off the pad)
+      s += K.tyre(436, 610, 12) + K.tyre(452, 604, 11);
+      s += K.wreck(470, 606, { w: 118, color: 'red', flip: false });
       // road sign at the junction: "AEGIS HQ" with an arrow down the road
       s += K.post(1924, 552, 650, 8, P.iron) + K.post(2004, 552, 650, 8, P.iron);
       s += K.sign(1900, 520, 130, 40, 'AEGIS ↓', P.shock, { rot: -3 });

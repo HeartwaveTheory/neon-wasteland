@@ -6,8 +6,9 @@ prototype (`prototype/neon-wasteland.html`, one file, open it in a browser).
 ## What's here
 
 - `art/map.png` (1672 × 941) and `art/map-2x.webp`: the **Neon Wasteland** map. It is the user's reference map
-  (`maplab/ref/map.webp`) repainted as a sun-baked Borderlands-style canyon with cyberpunk tech. The layout is the same:
-  the two enemy gates, the four build pads, the junction and the AEGIS HQ at the bottom.
+  (`maplab/ref/map.webp`) repainted as a sun-baked Borderlands-style canyon with cyberpunk tech: the two enemy gates, the
+  junction and the AEGIS HQ at the bottom. Layout v2 (`maplab/LAYOUT.md`) has 10 smaller build pads and a half-size HQ
+  further down, with the road running on through its plaza.
 - `art/towers/*.png` (512 × 512) and `art/towers/layers/*-base.png` / `*-head.png`: the first four towers, drawn from the
   user's tower reference (`towers2/ref/towers.jpg`). Each has a static base layer and a weapon / top layer the game can
   turn or animate:
@@ -37,5 +38,6 @@ cd maplab && node compose.mjs              # map -> maplab/out/map.png, map-2x.p
 cd ../towers2 && node render.mjs --sheet   # towers -> towers2/out/png, layers, lineup.png, on-map.png
 ```
 
-The scripts import Playwright from `/opt/node22/lib/node_modules/playwright` (the cloud workspace's copy); change that
-path in `maplab/compose.mjs` and `towers2/render.mjs` elsewhere.
+The scripts import Playwright from `$PLAYWRIGHT` (the path to its `index.mjs`), or the cloud workspace's copy at
+`/opt/node22/lib/node_modules/playwright` when that isn't set, e.g.
+`PLAYWRIGHT=~/path/to/node_modules/playwright/index.mjs node compose.mjs`.

@@ -13,7 +13,8 @@
 //     build(K) { return { ground: '', objects: '', light: '' } }   // K is a fresh MapKit
 //   }
 // The base is re-generated automatically when the erase polygons change.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import { readdirSync, writeFileSync, readFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

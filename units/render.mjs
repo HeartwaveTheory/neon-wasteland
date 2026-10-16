@@ -1,7 +1,8 @@
 // Renders every unit's frames into a sprite strip and a review sheet.
 //   node render.mjs            -> out/<id>.png (8 frames x 320 px, 2x), out/review.png
 //   node render.mjs raider     -> only ids containing "raider"
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import { writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

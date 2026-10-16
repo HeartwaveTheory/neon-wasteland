@@ -1,5 +1,6 @@
 // Playtest harness: loads the built game inside an artifact-like skeleton.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const body = readFileSync('dist/neon-wasteland.html', 'utf8');
 
@@ -38,7 +39,7 @@ if (mode === 'ui') {
   await p.evaluate(() => { const N = window.__NW; N.build(1, 'plasma'); N.build(2, 'garrison'); N.startWave(); N.step(14); });
   await p.waitForTimeout(150);
   await p.screenshot({ path: 'shots/04-wave1.png' });
-  await p.evaluate(() => { const N = window.__NW; N.S.gold += 2000; N.build(3, 'railgun'); for (let i = 0; i < 4; i++) { N.upgrade(i); N.upgrade(i); } while (N.S.wave < 6) { N.startWave(); N.step(6); } N.step(12); N.castAir(700, 262); N.step(0.7); });
+  await p.evaluate(() => { const N = window.__NW; N.S.gold += 2000; N.build(3, 'railgun'); ['dragon', 'sniper', 'plasma', 'garrison', 'railgun', 'plasma'].forEach((k, j) => N.build(4 + j, k)); for (let i = 0; i < 10; i++) { N.upgrade(i); if (i < 4) N.upgrade(i); } while (N.S.wave < 6) { N.startWave(); N.step(6); } N.step(12); N.castAir(700, 262); N.step(0.7); });
   await p.waitForTimeout(150);
   await p.screenshot({ path: 'shots/05-wave6.png' });
   // phone landscape

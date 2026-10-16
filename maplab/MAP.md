@@ -57,8 +57,7 @@ the HQ artist's call (short, neon, readable).
 Stay inside your regions (routes: in the open land and along the roads, not inside other owners' crops). Where
 regions meet, keep it plain so neighbours can join up.
 
-Key coordinates (2x): pads `[cx, cy, rx, ry]`: `[916, 324, 160, 80]`, `[2050, 436, 180, 96]`,
-`[1096, 690, 184, 94]`, `[2394, 724, 184, 94]` (exported from `layers/pads.mjs`). Left gate: road enters ~ (300–560, 0–200).
+Key coordinates (2x): the 10 pads are `PADS` in `layers/pads.mjs` (Layout v2, `LAYOUT.md`: slab rx 88 / ry 44). Left gate: road enters ~ (300–560, 0–200).
 Right gate: road enters ~ (2400–2860, 0–220). Junction ~ (1760, 760). HQ / castle complex ~ (1300–2100, 1020–1660).
 Pond ~ (1580–2000, 190–420). Mine ~ (2560–3344, 120–660). Lumber camp ~ (360–1000, 1180–1600). Quarry ~ (2400–3344, 1000–1520).
 

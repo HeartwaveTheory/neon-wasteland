@@ -1,5 +1,6 @@
 // Leash test: troopers must stay inside their tower's range and near their rally point.
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+// Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
+const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
 const page = await browser.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
@@ -7,7 +8,7 @@ await page.goto('file://' + process.cwd() + '/dist/_test.html');
 await page.waitForFunction(() => window.__NW);
 const r = await page.evaluate(() => {
   const N = window.__NW; N.start(); const S = N.S; S.gold = 99999; S.lives = 9999;
-  for (let i = 0; i < 4; i++) N.build(i, 'garrison');
+  for (let i = 0; i < N.PADS.length; i++) N.build(i, 'garrison');
   const SQ = 0.7, ed = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) / SQ);
   const rally0 = S.towers.map((tw) => +ed(N.PADS[tw.i], tw.rally).toFixed(0));
   N.startWave(); S.spawning = [];
