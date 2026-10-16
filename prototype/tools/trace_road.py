@@ -17,7 +17,7 @@ ENTRY = {
     'L': [[174, -30], [176, 40], [182, 80], [196, 118], [214, 140]],
     'R': [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1284, 122]],
 }
-END = [880, 548]   # where the road meets the AEGIS gate
+END = [885, 730]   # where the road meets the AEGIS gate (half-size HQ, further down the plaza)
 ROUGH = {k: [v[-1], END] for k, v in ENTRY.items()}
 img = cv2.resize(cv2.imread(sys.argv[1]), (1672, 941), interpolation=cv2.INTER_AREA)
 lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.float32)
@@ -104,4 +104,4 @@ ov = img.copy()
 ov[mask > 0] = (ov[mask > 0] * 0.65 + np.array([255, 0, 255]) * 0.35).astype(np.uint8)
 for k, col in (('L', (0, 255, 0)), ('R', (0, 255, 255))):
     cv2.polylines(ov, [np.array(res[k], np.int32)], False, col, 3)
-cv2.imwrite(sys.argv[2], ov[0:620, 100:1480])
+cv2.imwrite(sys.argv[2], ov[0:800, 100:1480])

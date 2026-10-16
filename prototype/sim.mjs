@@ -1,6 +1,7 @@
 // Bot playtests: several strategies, full 10-wave games at simulation speed.
 //   node sim.mjs [runs] [strategy,strategy,...]
-// Each bot builds its plan on pads 1-4 as soon as it can afford each tower, then spends everything on the cheapest upgrade.
+// Each bot builds its plan on pads 1-7 (a 4-tower plan carries on with its first three towers on pads 5-7; `pads4` keeps to
+// pads 1-4) as soon as it can afford each tower, then spends everything on the cheapest upgrade.
 // Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
@@ -18,6 +19,7 @@ const STRATS = {
   rail_plas:  { plan: ['plasma', 'plasma', 'railgun', 'railgun'], spells: true },
   snip_rail:  { plan: ['sniper', 'plasma', 'railgun', 'sniper'], spells: true },
   lazy:       { plan: ['sniper', 'plasma', 'garrison', 'railgun'], spells: false, noUpgrade: true },
+  mixed_4pad: { plan: ['plasma', 'plasma', 'garrison', 'sniper'], spells: true, pads4: true },   // ignores the 3 new pads
   // the Dragon (fire patches, ground only): one in a mixed build, dragon-heavy builds, builds with no anti-air
   mix_drg:    { plan: ['plasma', 'plasma', 'dragon', 'sniper'], spells: true },     // the dragon instead of the garrison
   mix_drg_ns: { plan: ['plasma', 'plasma', 'dragon', 'sniper'], spells: false },
@@ -38,13 +40,14 @@ for (const [name, st] of Object.entries(STRATS)) {
   for (let r = 0; r < runs; r++) {
     res.push(await page.evaluate((st) => {
       const N = window.__NW; N.restart(); N.start(); const S = N.S;
-      const order = [0, 1, 2, 3];
+      const plan = st.pads4 ? st.plan : st.plan.concat(st.plan.slice(0, 3)).slice(0, N.PADS.length);
+      const order = plan.map((_, i) => i);
       let t = 0; const log = [];
       while (!S.over && t < 1200) {
         // build towers in plan order, then upgrade the cheapest upgrade
-        for (const i of order) if (!S.towers[i] && S.gold >= N.TOWERS[st.plan[i]].cost[0]) N.build(i, st.plan[i]);
-        if (!st.noUpgrade && S.towers.every(Boolean)) {
-          const ups = S.towers.map((tw, i) => (tw.lvl < 2 ? [N.TOWERS[tw.kind].cost[tw.lvl + 1], i] : null)).filter(Boolean).sort((a, b) => a[0] - b[0]);
+        for (const i of order) if (!S.towers[i] && S.gold >= N.TOWERS[plan[i]].cost[0]) N.build(i, plan[i]);
+        if (!st.noUpgrade && order.every((i) => S.towers[i])) {
+          const ups = S.towers.map((tw, i) => (tw && tw.lvl < 2 ? [N.TOWERS[tw.kind].cost[tw.lvl + 1], i] : null)).filter(Boolean).sort((a, b) => a[0] - b[0]);
           if (ups.length && S.gold >= ups[0][0]) N.upgrade(ups[0][1]);
         }
         if (!S.started) N.startWave();

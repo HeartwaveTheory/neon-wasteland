@@ -147,17 +147,20 @@ const TS = SPR / 0.46;        // tower effects scale with the sprite
 const INK = '#120d09';
 
 // ---------------------------------------------------------------- map data
-// Map v3 (art/map-v3-source.webp, painted): its 4 build pads, measured from their cyan rings, and where the road meets the
-// AEGIS gate. The pads, rings and slabs are all in the painting; the game draws only the selection and hover rings.
-const PADS = [{ x: 463, y: 182 }, { x: 1022, y: 240 }, { x: 553, y: 363 }, { x: 1200, y: 378 }];
-const PAD_TAP = { rx: 90, ry: 46 };   // a pad's tap area: its painted cyan ring
-const HQ = { x: 880, y: 548 };
+// Map v3 with the smaller layout (maplab/map_v3_layout.py makes assets/map.webp from the painting): 7 small pads (the
+// painting's 4, shrunk, a 5th beside the 3rd, and 2 on the plaza beside the longer road) and the half-size AEGIS, whose
+// gate is where the road ends. The pads, rings and slabs are in the map; the game draws only the selection and hover rings.
+const PADS = [{ x: 463, y: 182 }, { x: 1022, y: 240 }, { x: 500, y: 366 }, { x: 1200, y: 378 }, { x: 604, y: 360 },
+  { x: 752, y: 650 }, { x: 1018, y: 650 }];
+const PAD_RING = { rx: 44, ry: 23 };  // the painted cyan ring
+const PAD_TAP = { rx: 54, ry: 30 };   // a pad's tap area: a little bigger than its ring, for fingers
+const HQ = { x: 885, y: 730 };
 // Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate.
-const ROUTE_L = [[174, -30], [176, 40], [182, 80], [196, 118], [215, 141], [237, 142], [257, 152], [277, 164], [292, 181], [304, 201], [321, 219], [337, 235], [355, 249], [377, 257], [399, 265], [421, 269], [443, 274], [465, 275], [487, 275], [509, 275], [531, 275], [553, 272], [575, 270], [597, 265], [619, 260], [641, 257], [663, 257], [685, 258], [707, 264], [729, 267], [751, 275], [773, 285], [793, 295], [813, 306], [831, 323], [847, 339], [863, 355], [877, 373], [879, 395], [879, 417], [879, 439], [879, 461], [879, 483], [879, 505], [881, 527], [880, 548]];
-const ROUTE_R = [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1285, 123], [1272, 141], [1259, 159], [1247, 179], [1240, 201], [1233, 223], [1217, 241], [1199, 258], [1181, 271], [1159, 279], [1137, 285], [1115, 294], [1093, 302], [1071, 308], [1051, 320], [1033, 335], [1015, 349], [995, 361], [973, 363], [951, 365], [931, 377], [913, 393], [897, 409], [885, 429], [882, 451], [881, 473], [881, 495], [881, 517], [881, 539], [880, 548]];
+const ROUTE_L = [[174, -30], [176, 40], [182, 80], [196, 118], [215, 141], [237, 142], [257, 152], [277, 164], [292, 181], [306, 201], [321, 217], [337, 233], [357, 245], [379, 248], [399, 262], [421, 269], [443, 274], [465, 275], [487, 275], [509, 275], [531, 275], [553, 272], [575, 270], [597, 265], [619, 260], [641, 257], [663, 257], [685, 258], [707, 264], [729, 267], [751, 275], [773, 285], [793, 295], [813, 306], [831, 323], [847, 339], [863, 355], [875, 375], [875, 397], [875, 419], [875, 441], [875, 463], [875, 485], [875, 507], [875, 529], [875, 551], [875, 573], [875, 595], [875, 617], [875, 639], [875, 661], [879, 683], [885, 705], [885, 730]];
+const ROUTE_R = [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1285, 123], [1272, 141], [1259, 159], [1247, 179], [1240, 201], [1233, 223], [1217, 241], [1199, 258], [1181, 271], [1159, 279], [1137, 285], [1115, 287], [1093, 288], [1071, 297], [1053, 313], [1037, 329], [1019, 346], [999, 359], [977, 363], [955, 364], [935, 373], [917, 389], [901, 405], [887, 423], [882, 445], [876, 467], [875, 489], [875, 511], [875, 533], [875, 555], [875, 577], [875, 599], [875, 621], [875, 643], [875, 665], [880, 687], [885, 709], [885, 730]];
 // Road half-width at each route point: enemies spread sideways only where the road is wide enough.
-const HALFW_L = [0.0, 0.0, 13.6, 8.8, 7.8, 24.8, 22.6, 16.2, 18.6, 22.4, 34.4, 27.2, 24.0, 25.6, 22.8, 21.0, 21.8, 20.8, 24.0, 24.0, 23.0, 19.8, 19.8, 23.8, 24.6, 24.4, 26.0, 29.0, 27.8, 27.0, 26.0, 26.2, 25.6, 25.4, 32.2, 36.2, 32.2, 39.0, 41.4, 39.0, 38.4, 38.8, 36.2, 33.0, 24.2, 3.2];
-const HALFW_R = [0.0, 0.0, 0.0, 0.0, 0.0, 9.2, 9.4, 15.0, 21.4, 27.0, 25.2, 23.2, 20.6, 23.8, 27.0, 25.0, 28.2, 24.2, 20.6, 25.6, 25.8, 29.4, 26.4, 21.0, 27.6, 34.0, 25.4, 32.4, 43.0, 38.3, 35.0, 31.8, 33.4, 12.4, 3.2];
+const HALFW_L = [0.0, 0.0, 13.6, 8.8, 7.8, 24.8, 22.6, 16.4, 18.6, 21.8, 33.4, 26.0, 19.0, 15.4, 19.8, 21.0, 21.8, 20.8, 23.2, 24.0, 23.0, 19.8, 19.8, 23.8, 24.6, 24.4, 26.0, 29.0, 27.8, 27.0, 26.0, 26.2, 25.6, 25.4, 32.2, 36.2, 32.2, 36.6, 37.8, 34.6, 34.8, 41.0, 39.8, 37.4, 43.1, 43.4, 38.6, 38.6, 42.0, 37.8, 39.4, 38.6, 18.0, 0.0];
+const HALFW_R = [0.0, 0.0, 0.0, 0.0, 0.0, 9.2, 9.4, 15.0, 21.4, 27.0, 25.2, 23.2, 20.6, 23.8, 27.0, 25.0, 31.8, 39.3, 31.2, 27.4, 24.0, 29.6, 27.4, 21.4, 26.0, 34.0, 26.2, 29.2, 41.2, 41.4, 40.6, 39.0, 38.2, 45.1, 43.0, 37.8, 39.4, 42.3, 37.0, 40.2, 36.0, 14.0, 0.0];
 const GATES = { L: { x: 178, y: 50 }, R: { x: 1318, y: 84 } };   // the two gate openings (danger glow, call-early buttons)
 
 function makePath(pts, halfw) {
@@ -209,7 +212,7 @@ const TOWERS = {
   sniper: {
     name: 'Sniper', cost: [90, 110, 160], range: [300, 330, 360], dmg: [32, 52, 80], rate: [1.7, 1.5, 1.3], air: true,
     dtype: 'phys', glow: '#a35cff', blurb: 'Long range, heavy single shots. Hits flyers. Weak against armour.',
-    head: { pivot: [268, 110], muzzle: [384.6, 89.2], faces: 1 },
+    head: { pivot: [268, 110], muzzle: [384.6, 89.2], faces: 1, aim: 0.7 },   // aim: the rifle swings up to 0.7 rad to point at its target
   },
   plasma: {
     name: 'Plasma', cost: [110, 140, 200], range: [230, 250, 270], dmg: [14, 21, 31], chain: [3, 4, 5], rate: [1.15, 1.05, 0.95], air: true,
@@ -219,7 +222,7 @@ const TOWERS = {
   railgun: {
     name: 'Railgun', cost: [120, 150, 220], range: [280, 300, 320], dmg: [90, 150, 230], rate: [2.6, 2.4, 2.2], air: false,
     dtype: 'pierce', glow: '#ff8a1e', blurb: 'Slow piercing shot through every enemy in a line. Ground only.',
-    head: { pivot: [270, 150], muzzle: [113, 135], faces: -1 },
+    head: { pivot: [270, 150], muzzle: [113, 135], faces: -1, aim: 0.55 },
   },
   garrison: {
     name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
@@ -504,6 +507,7 @@ function updateTower(tw, dt) {
   tw.built = Math.max(0, tw.built - dt);
   tw.pulse = Math.max(0, tw.pulse - dt * 3);
   if (tw.kind === 'garrison') return updateGarrison(tw, dt);
+  if (def.head.aim) trackAim(tw, dt);
   tw.cd -= dt;
   const range = def.range[tw.lvl];
   if (tw.kind === 'railgun' && tw.charge > 0) {
@@ -517,11 +521,35 @@ function updateTower(tw, dt) {
   const tg = tw.kind === 'dragon' ? dragonTarget(tw, range) : pickTarget(tw, range, def.air);
   if (!tg) return;
   tw.aim = tg; tw.cd = def.rate[tw.lvl];
-  if (def.head.faces) tw.flip = (tg.x < pad.x ? -1 : 1) * def.head.faces;
+  if (def.head.aim) aimAt(tw, tg.x, aimY(tg), true);
+  else if (def.head.faces) tw.flip = (tg.x < pad.x ? -1 : 1) * def.head.faces;
   if (tw.kind === 'sniper') fireSniper(tw, tg);
   else if (tw.kind === 'plasma') firePlasma(tw, tg);
   else if (tw.kind === 'railgun') { tw.charge = 0.45; tw.aimPt = { x: tg.x, y: tg.y }; sfx('charge'); }
   else if (tw.kind === 'dragon') fireDragon(tw, tg);
+}
+// Guns that aim (sniper, railgun): the head turns to face its target and tilts its barrel toward it (up to head.aim
+// radians), so shots leave along the barrel. aimAt sets the side and the wanted angle; snap jumps there (a shot).
+function aimAt(tw, x, y, snap) {
+  const def = TOWERS[tw.kind], pad = PADS[tw.i];
+  const flip = (x < pad.x ? -1 : 1) * def.head.faces;
+  if (flip !== tw.flip) { tw.flip = flip; tw.ang = 0; }
+  const [cx, cy] = spriteToMap(pad, def.head.pivot[0], def.head.pivot[1]);
+  const side = Math.sign((def.head.muzzle[0] - def.head.pivot[0]) * flip) || 1;   // which way the barrel points
+  // the barrel's own slant in the art, so the angle is measured from where it already points
+  const base = Math.atan2(def.head.muzzle[1] - def.head.pivot[1], Math.abs(def.head.muzzle[0] - def.head.pivot[0]));
+  let a = Math.atan2(y - cy, (x - cx) * side) - base;
+  a = clamp(a, -def.head.aim, def.head.aim) * side;
+  tw.angGoal = a;
+  if (snap) tw.ang = a;
+}
+function trackAim(tw, dt) {
+  const tg = tw.kind === 'railgun' && tw.aimPt ? null : tw.aim;
+  if (tw.kind === 'railgun' && tw.charge > 0 && tw.aimPt) aimAt(tw, tw.aimPt.x, tw.aimPt.y - 14, true);
+  else if (tg && !tg.dead) aimAt(tw, tg.x, aimY(tg), false);
+  else tw.angGoal = 0;
+  const g = tw.angGoal || 0, a = tw.ang || 0;
+  tw.ang = a + clamp(g - a, -4 * dt, 4 * dt);   // turns at about 230 degrees a second
 }
 function muzzle(tw) {
   const def = TOWERS[tw.kind], pad = PADS[tw.i];
@@ -531,7 +559,7 @@ function fireSniper(tw, tg) {
   const def = TOWERS.sniper;
   let dmg = def.dmg[tw.lvl], crit = false;
   if (tw.lvl === 2 && Math.random() < 0.15 && !tg.def.boss) { dmg *= 3; crit = true; }
-  const [mx, my] = muzzle(tw);
+  const [mx, my] = mouthAt(tw);
   const ty = aimY(tg);
   S.fx.push({ kind: 'tracer', x1: mx, y1: my, x2: tg.x, y2: ty, life: 0.12, max: 0.12, color: '#ff3a4a' });
   S.fx.push({ kind: 'flash', x: mx, y: my, r: 12 * TS + 4, life: 0.08, max: 0.08, color: '#ffe0b0' });
@@ -542,7 +570,7 @@ function fireSniper(tw, tg) {
 }
 function firePlasma(tw, tg) {
   const def = TOWERS.plasma;
-  const [mx, my] = muzzle(tw);
+  const [mx, my] = mouthAt(tw);
   const hit = [tg]; let cur = tg;
   while (hit.length < def.chain[tw.lvl]) {
     let nx = null, nd = 95;
@@ -566,7 +594,7 @@ function firePlasma(tw, tg) {
 function fireRail(tw) {
   const def = TOWERS.railgun, pad = PADS[tw.i];
   const aim = tw.aimPt; if (!aim) return;
-  tw.flip = (aim.x < pad.x ? -1 : 1) * def.head.faces;
+  aimAt(tw, aim.x, aim.y - 14, true);
   const range = def.range[tw.lvl];
   // gameplay line: from the pad through the target to the end of the range (ground plane)
   let dx = aim.x - pad.x, dy = (aim.y - pad.y) / SQ; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
@@ -578,7 +606,7 @@ function fireRail(tw) {
     const qx = pad.x + vx * t, qy = pad.y + vy * t;
     if (t > 0.08 && Math.hypot(e.x - qx, e.y - qy) < 28 * (e.def.boss ? 1.6 : 1)) damage(e, def.dmg[tw.lvl], 'pierce', 'railgun');
   }
-  const [mx, my] = muzzle(tw);
+  const [mx, my] = mouthAt(tw);
   S.fx.push({ kind: 'rail', x1: mx, y1: my, x2: ex, y2: ey - 14, life: 0.32, max: 0.32 });
   S.fx.push({ kind: 'flash', x: mx, y: my, r: 26 * TS + 6, life: 0.12, max: 0.12, color: '#ffb35a' });
   burst(mx, my, '#ffb35a', 14, 120, 3, 0.4);
@@ -1016,10 +1044,10 @@ function drawTower(tw) {
   }
   // railgun charge glow
   if (tw.kind === 'railgun' && tw.charge > 0) {
-    const [mx, my] = muzzle(tw), k = 1 - tw.charge / 0.45;
+    const [mx, my] = mouthAt(tw), k = 1 - tw.charge / 0.45;
     glowDot(mx, my, (8 + k * 16) * TS + 4, `rgba(255,150,40,${0.35 + k * 0.5})`);
   }
-  if (tw.kind === 'plasma' && tw.pulse > 0) { const [mx, my] = muzzle(tw); glowDot(mx, my, 28 * TS + 6, `rgba(63,240,255,${tw.pulse * 0.6})`); }
+  if (tw.kind === 'plasma' && tw.pulse > 0) { const [mx, my] = mouthAt(tw); glowDot(mx, my, 28 * TS + 6, `rgba(63,240,255,${tw.pulse * 0.6})`); }
   // level chevrons
   for (let k = 0; k <= tw.lvl; k++) {
     const cx = pad.x + 40, cy = pad.y + 12 - k * 6;
@@ -1032,15 +1060,16 @@ function headPose(tw) {
   const def = TOWERS[tw.kind], pad = PADS[tw.i], [px, py] = def.head.pivot;
   const side = Math.sign((def.head.muzzle[0] - px) * (tw.flip || 1)) || 1;
   const [cx, cy] = spriteToMap(pad, px, py);
-  let rx = 0, ry = 0, ang = 0;
+  let rx = 0, ry = 0, ang = def.head.aim ? tw.ang || 0 : 0;
   if (tw.recoil > 0) {
-    rx = -side * tw.recoil * 4 * TS;
+    rx = -side * tw.recoil * 4 * TS * Math.cos(ang); ry = -side * tw.recoil * 4 * TS * Math.sin(ang);   // kicks back along the barrel
     if (tw.kind === 'dragon') { ry = -tw.recoil * 3 * TS; ang = -side * 0.13 * Math.sin(Math.min(1, tw.recoil) * Math.PI * 0.5); }
   }
   if (tw.kind === 'plasma') ry = -Math.sin(S.t * 2) * 1.2 * TS;
   return { rx, ry, ang, cx, cy };
 }
-// The muzzle with the head's current pose applied (the dragon's mouth moves when it rears).
+// The muzzle with the head's current pose applied (guns turn to aim, the dragon's mouth moves when it rears, the
+// plasma orb bobs): every shot starts here.
 function mouthAt(tw) {
   const [mx, my] = muzzle(tw), p = headPose(tw);
   const c = Math.cos(p.ang), s = Math.sin(p.ang), dx = mx - p.cx, dy = my - p.cy;
@@ -1330,6 +1359,9 @@ const ACID = [
 // Lights: x, y, glow radius (or rx/ry for signs), colour, kind. Kinds set how they behave: beacons blink, signs flicker
 // now and then, fires flicker, lamps and the rest breathe.
 const LGT = (x, y, r, c, k, ry) => ({ x, y, rx: r, ry: ry || r, c, k, ph: Math.random() * 6.28 });
+// The AEGIS compound is the painting's, scaled by half about where the road met it (maplab/map_v3_layout.py): a point
+// measured on the painting -> where it is now.
+const hqAt = (x, y) => [885 + 0.5 * (x - 885), 724 + 0.5 * (y - 556)];
 const LIGHTS = [
   // gate beacons
   LGT(78, 44, 15, LC.red, 'beacon'), LGT(261, 19, 15, LC.red, 'beacon'), LGT(307, 39, 15, LC.red, 'beacon'), LGT(1123, 39, 15, LC.red, 'beacon'),
@@ -1337,19 +1369,19 @@ const LIGHTS = [
   // street lamps
   LGT(765, 331, 30, LC.amber, 'lamp'), LGT(806, 327, 30, LC.amber, 'lamp'), LGT(953, 324, 30, LC.amber, 'lamp'), LGT(120, 661, 34, LC.amber, 'lamp'),
   LGT(1474, 637, 26, LC.amber, 'lamp'), LGT(1640, 237, 20, LC.amber, 'lamp'), LGT(1288, 651, 18, LC.amber, 'lamp'), LGT(1524, 648, 18, LC.amber, 'lamp'),
-  LGT(812, 586, 12, LC.amber, 'lamp'), LGT(937, 586, 12, LC.amber, 'lamp'),
+  ...[[812, 586], [937, 586]].map(([x, y]) => LGT(...hqAt(x, y), 7, LC.amber, 'lamp')),
   // neon signs
   LGT(1176, 60, 54, LC.red, 'sign', 22), LGT(1354, 198, 38, LC.magenta, 'sign', 14), LGT(1601, 133, 42, LC.pink, 'sign', 14),
-  LGT(752, 411, 46, LC.green, 'sign', 22), LGT(1013, 421, 46, LC.cyan, 'sign', 22), LGT(881, 576, 82, LC.cyan, 'sign', 24),
-  LGT(993, 713, 15, LC.cyan, 'sign', 38), LGT(267, 661, 38, LC.warm, 'sign', 13), LGT(475, 730, 11, LC.magenta, 'sign', 48),
+  LGT(752, 411, 46, LC.green, 'sign', 22), LGT(1013, 421, 46, LC.cyan, 'sign', 22), LGT(...hqAt(881, 576), 41, LC.cyan, 'sign', 12),
+  LGT(...hqAt(993, 713), 8, LC.cyan, 'sign', 19), LGT(267, 661, 38, LC.warm, 'sign', 13), LGT(475, 730, 11, LC.magenta, 'sign', 48),
   LGT(453, 790, 28, LC.red, 'sign', 10), LGT(1260, 697, 40, LC.yellow, 'sign', 19), LGT(1259, 670, 13, LC.yellow, 'sign', 9),
   LGT(1481, 153, 7, LC.pink, 'sign', 54),
-  // the HQ: entrance, skylight, tanks, the floor in front of the door, the holo flags, the mast top
-  LGT(884, 757, 32, LC.cyan, 'hq'), LGT(896, 690, 18, LC.cyan, 'hq', 7), LGT(1052, 682, 32, LC.cyan, 'hq', 11), LGT(884, 798, 44, LC.cyan, 'hq', 10),
-  LGT(618, 686, 9, LC.cyan, 'pad'), LGT(1137, 686, 9, LC.cyan, 'pad'), LGT(1006, 503, 8, LC.cyan, 'hq'),
-  // pad corner lights (painted on the slabs)
-  ...[[492, 145], [397, 166], [529, 195], [434, 213], [1051, 201], [955, 223], [1092, 253], [995, 275],
-    [578, 327], [478, 349], [619, 379], [520, 400], [1229, 339], [1130, 361], [1271, 391], [1171, 411]].map(([x, y]) => LGT(x, y, 9, LC.cyan, 'pad')),
+  // the HQ (half size): entrance, skylight, tanks, the floor in front of the door, the mast top; the holo flags stay put
+  LGT(...hqAt(884, 757), 16, LC.cyan, 'hq'), LGT(...hqAt(896, 690), 9, LC.cyan, 'hq', 4), LGT(...hqAt(1052, 682), 16, LC.cyan, 'hq', 6),
+  LGT(...hqAt(884, 798), 22, LC.cyan, 'hq', 5), LGT(...hqAt(1006, 503), 5, LC.cyan, 'hq'),
+  LGT(618, 686, 9, LC.cyan, 'pad'), LGT(1137, 686, 9, LC.cyan, 'pad'),
+  // pad corner lights (painted on the slabs: the painting's pad corners, at the small pads' scale)
+  ...PADS.flatMap((p) => [[14, -19], [-33, -8], [34, 6], [-13, 17]].map(([dx, dy]) => LGT(p.x + dx, p.y + dy, 5, LC.cyan, 'pad'))),
   // pylon insulators
   ...[[60, 590], [168, 557], [148, 578], [175, 578], [400, 527], [412, 527], [580, 504], [575, 525], [1136, 506], [1161, 506],
     [1402, 489], [1429, 489], [1620, 435], [1647, 435]].map(([x, y]) => LGT(x, y, 8, LC.cyan, 'ins')),
@@ -1359,12 +1391,12 @@ const LIGHTS = [
 ];
 // Power lines toward the HQ, as wires [x1, y1, x2, y2, sag] hopping pylon to pylon: energy pulses run along them.
 const WIRES = {
-  L: [[27, 591, 148, 578, 3], [182, 578, 400, 548, 6], [421, 545, 575, 525, 5], [612, 503, 707, 611, 6]],
-  R: [[1647, 437, 1431, 491, 6], [1402, 491, 1168, 509, 8], [1161, 506, 1009, 511, 5]],
+  L: [[27, 591, 148, 578, 3], [182, 578, 400, 548, 6], [421, 545, 575, 525, 5], [616, 500, 796, 752, 22]],
+  R: [[1647, 437, 1431, 491, 6], [1402, 491, 1168, 509, 8], [1124, 484, 950, 730, 22]],
 };
 const SMOKE_AT = [[1528, 158], [1500, 80]];               // data-mine chimney, derrick
 const FIRE_AT = { x: 275, y: 750 }, WELD_AT = { x: 394, y: 748 };
-const SEARCHLIGHT = { x: 736, y: 616, len: 270, half: 0.13, a0: -2.2, a1: -1.0, period: 11 };   // the HQ watchtower's searchlight
+const SEARCHLIGHT = { x: 810, y: 754, len: 220, half: 0.13, a0: -2.2, a1: -1.0, period: 11 };   // the HQ watchtower's searchlight (hqAt(736, 616))
 const PORTAL_AT = { x: 1605, y: 186, rx: 27, ry: 29 };
 
 const LIVING = { ready: false, t: 0, acid: [], parts: [], pulses: [], next: { L: 2, R: 4, spark: 3, weld: 2 }, weldOn: 0, ms: 0, acc: {} };
@@ -1588,7 +1620,7 @@ function drawPadHints() {
     const p = PADS[i], a = 0.35 + 0.25 * Math.sin(S.t * 3 + i);
     const sel = S.sel && S.sel.pad === i;
     ctx.strokeStyle = sel ? '#ffd23a' : `rgba(63,240,255,${a})`; ctx.lineWidth = sel ? 4 : 3;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, PAD_TAP.rx, PAD_TAP.ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, PAD_RING.rx, PAD_RING.ry, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
 function render() {

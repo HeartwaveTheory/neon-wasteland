@@ -221,10 +221,10 @@ check('info panel: dragon stats', info[0].includes(`burns ${T.burn[0]}/s for ${T
 check('info panel: dragon blurb when picked', /DRAGON · 110 SCRAP/.test(info[1]), info[1]);
 
 // ------------------------------------------------------------------ the real art: the head turns to its target, the glob leaves the mouth
-// Two dragons spit at once: pad 0 at a raider on the road to its left, pad 2 at one to its right (each out of the other's range).
+// Two dragons spit at once: pad 0 at a raider on the road to its left, pad 4 at one to its right (each out of the other's range).
 const aim = await p.evaluate(() => {
   const N = window.__NW; fresh(); const S = N.S, H = N.TOWERS.dragon.head;
-  N.build(0, 'dragon'); N.build(2, 'dragon');
+  N.build(0, 'dragon'); N.build(4, 'dragon');
   const roadSide = (i, sgn) => {   // the road point in range of pad i furthest to one side of it
     const pad = N.PADS[i], P = N.PATHS.L; let best = null;
     for (let d = 0; d < P.len; d += 3) {
@@ -234,11 +234,11 @@ const aim = await p.evaluate(() => {
     }
     return best;
   };
-  const L = park('raider', 'L', roadSide(0, -1).d), R = park('raider', 'L', roadSide(2, 1).d);
+  const L = park('raider', 'L', roadSide(0, -1).d), R = park('raider', 'L', roadSide(4, 1).d);
   const out = [];
   for (let k = 0; k < 120 && S.globs.length < 2; k++) N.step(1 / 60);
   N.step(2 / 60);   // just after the spit: head reared, glob leaving the mouth
-  for (const [i, tg] of [[0, L], [2, R]]) {
+  for (const [i, tg] of [[0, L], [4, R]]) {
     const tw = S.towers[i], pad = N.PADS[i], g = S.globs.find((q) => q.owner === tw.id);
     const m = N.mouthAt(tw), pivX = pad.x + (H.pivot[0] - 256) * 0.23;
     out.push({ pad: i, targetSide: Math.sign(tg.x - pad.x), mouthSide: Math.sign(m[0] - pivX), flip: tw.flip,
