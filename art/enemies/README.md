@@ -1,18 +1,26 @@
-# Enemy sprites from the concept sheet
+# Enemy and troop sprites from the turnaround sheet
 
-`concept.png` (2000 × 1116) is the enemy concept sheet: the scout, raider, enforcer and mech, each on a pedestal in a
-gold frame. The game's sprites for those four are cut straight from it, so in the game they look exactly like it.
+`turnaround.png` (2000 × 1116) is the enemy turnaround sheet: the scout, raider, enforcer and mech, each drawn from the
+front, three-quarter, side and back. The game's sprites for those four, and for the player's troops, come from it, so
+they look exactly like it. (`concept.png` is the earlier single-pose concept, kept for reference.)
 
-`cut.py` (run it with the repo's `venv`: `venv/bin/python -I art/enemies/cut.py`) does it:
+`turnaround.py` (run it with the repo's `venv`: `venv/bin/python -I art/enemies/turnaround.py`) makes them:
 
-1. **Cut:** inside a box round each enemy, it keeps the regions the art's black ink lines close off, minus those that
-   reach the box's edge (the wall and the pedestal) or match the wall's or pedestal's colour (gaps between the legs),
-   plus the ink round them. A few spots are set by hand: `DROP` / `DROP_AT` (background it still kept), `WALLS`
-   (where the pants fade into the shadow with no ink line), `KEEP` / `KEEP_INK` (the mech's vent box, the antennae),
-   `HOLES` (a wall line, a drip of pedestal ink). `cutouts/*.png` are the results at full size.
-2. **Strip:** each cut-out faces right (the concepts face left, so the scout, raider and mech are flipped), scaled so
-   it fits the game's 320 px frame, feet at (160, 300), into `prototype/assets/units/<name>.webp`: frames 0-5 walk (a
-   bob, a sway and a squash on each step), 6-7 attack (a wind-up leaning back, then the hit lunging forward). It
-   prints each sprite's height in the game's 160-unit frame: that is `sh` in `game.html` (`ENEMIES`).
+1. **Cut:** each figure is cut from the sheet: the regions its black ink lines close off, minus the background, the
+   grid, the disc it stands on and its glowing ring, and the painted shadow; plus the ink round them, and its neon (the
+   blades, the eyes) by colour. A few things are set by hand: `LEGS` (each leg's rough centre), `FORCE` (the raider's
+   backpack, drawn with grey lines), `DARK_LEGS` (the raider's near-black legs).
+2. **Rig:** each figure is split into its body and its legs at the hip (`RIG`). In the side and three-quarter views the
+   legs swing from the hip and lift (a trot for the dog: the far legs are darker copies half a stride out); in the front
+   and back views they step, lifting in turn, and the body rocks over the planted foot and bobs.
+3. **Sheets:** `prototype/assets/units/<name>.webp`: one row per view (front, three-quarter, side, back), 8 walk frames
+   then 2 attack frames (a wind-up, then the hit, side on), 256 px frames, feet at the bottom middle. It prints each
+   sprite's height in the game's 160-unit frame: `sh` in `game.html` (`ENEMIES`, and `SHEETS` for the troops).
+4. **Troops:** the Garrison's troopers and the Drop Squad's mercs wear the raider's rig re-skinned (`SKINS`): AEGIS blue
+   with a cyan visor, and orange.
 
-`review.png` shows all four strips. Rebuild the game afterwards (`python3 prototype/build.py`).
+In the game (`game.html`, `SHEETS` / `viewOf`), every unit shows the view that matches where it's heading (coming down
+the screen: its front; on a diagonal: its three-quarter view; across: its side; going up: its back) and turns smoothly;
+its walk frames follow the ground it covers (`stride`), so the feet don't slide.
+
+`review.jpg` shows every sheet. Rebuild the game afterwards (`python3 prototype/build.py`).

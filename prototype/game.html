@@ -243,14 +243,13 @@ const NAPALM = { flight: 0.6, maxPatches: 3, after: 1, afterK: 0.5 };
 
 // ---------------------------------------------------------------- enemies
 // Map v3 (4 pads): the boss has 2800 HP (was 3400) so a good mixed build can sometimes stop it (sim.mjs).
-// h: height on the map (px); sh: the sprite's height in its 160-unit frame (scout, raider, enforcer and mech are cut from
-// the enemy concept sheet by ../art/enemies/cut.py, which prints their sh).
+// h: height on the map (px); sh: the sprite's height in its 160-unit frame (../art/enemies/turnaround.py prints it).
 const ENEMIES = {
-  raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 119, shadow: 7 },
-  scout:    { name: 'Scout',    hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, h: 23, sh: 112, shadow: 11 },
-  enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 114, shadow: 11 },
+  raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 96, shadow: 7 },
+  scout:    { name: 'Scout',    hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, h: 23, sh: 96, shadow: 11 },
+  enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 94, shadow: 11 },
   drone:    { name: 'Drone',    hp: 70,   speed: 52, armor: 0,   bounty: 9,   lives: 1,  air: true, h: 17, sh: 70, shadow: 8 },
-  mech:     { name: 'Mech',     hp: 2800, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 140, shadow: 20, boss: true },
+  mech:     { name: 'Mech',     hp: 2800, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 127, shadow: 20, boss: true },
 };
 // Waves: groups of { t: type, n: count, g: gate, every: seconds between, delay: start delay }.
 const WAVES = [
@@ -806,7 +805,7 @@ function updateTroop(tr, dt) {
   if (tr.target) { const side = tr.x < tr.target.x ? -1 : 1; gx = tr.target.x + side * (tr.target.def.boss ? 30 : 13); gy = tr.target.y + 2; }
   const dx = gx - tr.x, dy = gy - tr.y, d = Math.hypot(dx, dy);
   tr.moving = d > 2;
-  if (d > 2) { const v = Math.min(d, 75 * dt); tr.x += (dx / d) * v; tr.y += (dy / d) * v; tr.face = dx < 0 ? -1 : 1; tr.walk = (tr.walk || 0) + dt * 10; }
+  if (d > 2) { const v = Math.min(d, 75 * dt); tr.x += (dx / d) * v; tr.y += (dy / d) * v; tr.face = dx < 0 ? -1 : 1; tr.walk = (tr.walk || 0) + v; steer(tr, dx / d, dy / d, dt, 10); }
   const tg = tr.target;
   if (tg && d < 8) {
     tr.face = tg.x < tr.x ? -1 : 1;
@@ -831,7 +830,7 @@ function spawnEnemy(type, gate) {
   const hp = Math.round(def.hp * (1 + HP_PER_WAVE * Math.max(0, S.wave - 1)));
   const e = { id: S.uid++, type, def, path: gate, d: 0, off: rand(-1, 1), hp, maxHp: hp, x: 0, y: 0, face: 1, cd: 0, blockers: [], seed: Math.random() * 10, hit: 0, dead: false };
   if (def.boss) e.off = 0;
-  const p = pathAt(PATHS[gate], 0); e.x = p.x; e.y = p.y;
+  const p = pathAt(PATHS[gate], 0); e.x = p.x; e.y = p.y; e.vx = p.dx; e.vy = p.dy;
   S.enemies.push(e);
   return e;
 }
@@ -850,14 +849,18 @@ function updateEnemy(e, dt) {
     }
   } else {
     e.d += e.def.speed * dt;
-    e.walk = (e.walk || 0) + dt * e.def.speed * 0.25;
+    e.walk = (e.walk || 0) + e.def.speed * dt;   // map px walked (walkFrame)
   }
   e.swing = Math.max(0, (e.swing || 0) - dt * 4);
   const p = pathAt(PATHS[e.path], e.d);
   // lateral offset fades to zero at the end so everyone funnels into the gate
   const off = e.off * roomAt(PATHS[e.path], e.d);
   const nx = p.x - p.dy * off, ny = p.y + p.dx * off;
-  if (!blocked) { const mdx = nx - e.x; if (Math.abs(mdx) > 0.05) e.face = mdx < 0 ? -1 : 1; }
+  if (!blocked) {
+    const mdx = nx - e.x, mdy = ny - e.y, L = Math.hypot(mdx, mdy);
+    if (Math.abs(mdx) > 0.05) e.face = mdx < 0 ? -1 : 1;
+    if (L > 0.01) steer(e, mdx / L, mdy / L, dt);
+  }
   e.x = nx; e.y = ny;
   if (e.d >= PATHS[e.path].len) leak(e);
 }
@@ -967,17 +970,41 @@ function inkFill(fill, lw = 2) { ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function hitTint(e) { return e.hit > 0 ? '#ffffff' : null; }
 
-// Units are sprite strips: 8 frames of 320 px (6 walk, 2 attack), drawn facing
-// right with their feet at (80, 150) of a 160-unit frame; flipped to face left.
-const FRAME = 320;
-function drawSprite(sheet, frame, x, y, face, scale, flash) {
+// Units are sprite sheets, drawn facing right with their feet at (80, 150) of a 160-unit frame (flipped to face left).
+// The scout, raider, enforcer and mech, and the troops, come from the turnaround sheet (../art/enemies/turnaround.py):
+// one row per view (front, three-quarter, side, back), `walk` walk frames then 2 attack frames; the drone is one row of
+// 6 + 2. stride: map px walked per walk cycle, so the feet keep pace with the ground. sh: the sprite's height in its
+// 160-unit frame (the troops'; the enemies' is ENEMIES[].sh).
+const SHEETS = {
+  scout: { rows: 4, walk: 8, stride: 28 }, raider: { rows: 4, walk: 8, stride: 26 }, enforcer: { rows: 4, walk: 8, stride: 30 },
+  mech: { rows: 4, walk: 8, stride: 40 }, trooper: { rows: 4, walk: 8, stride: 24, sh: 96 }, merc: { rows: 4, walk: 8, stride: 24, sh: 96 },
+  drone: { rows: 1, walk: 6 },
+};
+const VIEW = { front: 0, quarter: 1, side: 2, back: 3 };
+function drawSprite(sheet, frame, x, y, face, scale, flash, row = 0) {
   const im = IMG['unit_' + sheet]; if (!im) return;
+  const fp = im.height / SHEETS[sheet].rows;   // frame size in the image's pixels
   ctx.save(); ctx.translate(x, y); ctx.scale(face * scale, scale);
-  ctx.drawImage(im, frame * FRAME, 0, FRAME, FRAME, -80, -150, 160, 160);
-  if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55; ctx.drawImage(im, frame * FRAME, 0, FRAME, FRAME, -80, -150, 160, 160); }
+  ctx.drawImage(im, frame * fp, row * fp, fp, fp, -80, -150, 160, 160);
+  if (flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55; ctx.drawImage(im, frame * fp, row * fp, fp, fp, -80, -150, 160, 160); }
   ctx.restore();
 }
-function walkFrame(u, rate = 1) { return Math.floor((u.walk || 0) * 0.9 * rate) % 6; }
+function walkFrame(u, sh) { return Math.floor(((u.walk || 0) / sh.stride) * sh.walk) % sh.walk; }
+// Which view to draw for a unit heading (vx, vy) on screen, and which way it faces: coming down the screen it shows its
+// front, on a diagonal down its three-quarter view, across its side, going up its back.
+function viewOf(vx, vy) {
+  const a = Math.atan2(vy, Math.abs(vx)) * 180 / Math.PI, face = vx < 0 ? -1 : 1;
+  if (a > 58) return { row: VIEW.front, face: 1 };
+  if (a > 20) return { row: VIEW.quarter, face };
+  if (a >= -40) return { row: VIEW.side, face };
+  return { row: VIEW.back, face: 1 };
+}
+// Ease a unit's heading toward (dx, dy) (a unit vector), so it turns over a few frames instead of flickering.
+function steer(u, dx, dy, dt, rate = 6) {
+  if (u.vx == null) { u.vx = dx; u.vy = dy; return; }
+  const k = Math.min(1, dt * rate);
+  u.vx += (dx - u.vx) * k; u.vy += (dy - u.vy) * k;
+}
 function drawEnemy(e) {
   const d = e.def, sc = d.h / d.sh;
   if (d.air) {
@@ -987,8 +1014,9 @@ function drawEnemy(e) {
   }
   shadow(e.x, e.y, d.shadow, d.shadow * 0.4);
   const blocked = e.blockedNow;
-  const frame = blocked ? (e.swing > 0.5 ? 7 : 6) : walkFrame(e, e.type === 'scout' ? 1.1 : 1);
-  drawSprite(e.type, frame, e.x, e.y, e.face, sc, e.hit > 0);
+  const sh = SHEETS[e.type];
+  if (blocked) drawSprite(e.type, sh.walk + (e.swing > 0.5 ? 1 : 0), e.x, e.y, e.face, sc, e.hit > 0, VIEW.side);   // side on to its blocker
+  else { const v = viewOf(e.vx, e.vy); drawSprite(e.type, walkFrame(e, sh), e.x, e.y, v.face, sc, e.hit > 0, v.row); }
   if (e.burnT > 0) drawBurning(e);
   if (d.boss && Math.random() < 0.35) S.parts.push({ x: e.x - e.face * 14, y: e.y - d.h * 0.95, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(60,56,60,.55)', size: rand(4, 7), g: -8, soft: true });
 }
@@ -1001,8 +1029,10 @@ function drawTroop(tr) {
   ctx.save();
   if (merc && tr.life < 3) ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 10));
   const fighting = tr.target && Math.hypot(tr.x - tr.target.x, tr.y - tr.target.y) < 40;
-  const frame = tr.swing > 0 ? (tr.swing > 0.5 ? 6 : 7) : fighting ? 6 : tr.moving ? walkFrame(tr, 1.4) : 0;
-  drawSprite(merc ? 'merc' : 'trooper', frame, tr.x, tr.y + yoff, tr.face, 26 / 116, tr.hit > 0);
+  const sheet = merc ? 'merc' : 'trooper', sh = SHEETS[sheet], sc = 26 / sh.sh;
+  if (tr.swing > 0 || fighting) drawSprite(sheet, sh.walk + (tr.swing > 0 && tr.swing <= 0.5 ? 1 : 0), tr.x, tr.y + yoff, tr.face, sc, tr.hit > 0, VIEW.side);
+  else if (tr.moving) { const v = viewOf(tr.vx, tr.vy); drawSprite(sheet, walkFrame(tr, sh), tr.x, tr.y + yoff, v.face, sc, tr.hit > 0, v.row); }
+  else drawSprite(sheet, 0, tr.x, tr.y + yoff, 1, sc, tr.hit > 0, VIEW.front);   // standing guard, facing out
   tr.hit = Math.max(0, (tr.hit || 0) - 1 / 60);
   ctx.restore();
 }

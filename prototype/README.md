@@ -12,8 +12,9 @@ map, and in portrait you drag to look around). It is a Kingdom Rush-style tower 
     every ground enemy walking through it (18/26/36 a second for 4/5/6 s, through armour). Patches don't stack, each
     dragon keeps at most 3, and drones and your own troopers are never hurt.
 - **5 enemies**: the raider, the scout (a fast robot dog), the enforcer (armoured), the drone (flying, can't be
-  blocked), and the mech boss in wave 10. The raider, scout, enforcer and mech are cut straight from the enemy concept
-  sheet (`../art/enemies/`), so they look exactly like it.
+  blocked), and the mech boss in wave 10. The raider, scout, enforcer and mech come from the enemy turnaround sheet
+  (`../art/enemies/`): they turn to face where they walk (front, three-quarter, side or back) and their legs step in
+  time with the ground. The Garrison's troopers and the Squad's mercs wear the raider's rig in AEGIS blue and orange.
 - **2 spells**: Airstrike (3 missiles) and Drop Squad (2 mercs who block for 18 s).
 - **Waves**: 10 waves from two gates. Tapping the skull calls a wave early for bonus scrap. Selling refunds 60%.
 - **Stars**: 18+ lives left is 3 stars, 6+ is 2 stars.
