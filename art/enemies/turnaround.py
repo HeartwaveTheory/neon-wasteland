@@ -230,9 +230,91 @@ WALK_N, FRAME, FEET = 8, 320, (160, 300)
 # The player's troops wear the raider's rig, re-skinned: its purples, pinks and reds (helmet, visor, blade, boots) and
 # its cyan blade turned to the troop's colour, its near-black jacket tinted; skin left alone. Hues are OpenCV's (0-180).
 SKINS = {
-    'trooper': dict(base='raider', hue=(88, 112), jacket=(110, 60), cyan=96),    # the Garrison: AEGIS blue, a cyan visor
+    'trooper': dict(base='raider', hue=(88, 112), jacket=(110, 60), cyan=96, arms='blasters'),   # the Garrison: AEGIS blue, a cyan visor, laser pistols
     'merc':    dict(base='raider', hue=(8, 22), jacket=(18, 70), cyan=14),       # the Drop Squad: orange
 }
+
+
+# The Garrison's troopers carry laser pistols instead of the raider's two blades. Each blade is cut away (BLADES: a
+# polygon round it, sheet px; the hand and anything skin-coloured stays), the new edge inked, and a pistol drawn in
+# the sheet's style (thick black outline, flat gunmetal, a glowing cell) in each hand (PISTOLS: the hand, sheet px, and
+# where the barrel points, degrees: 0 right, -90 up). Drawn before the reskin, so the gunmetal takes the troop's tint.
+BLADES = {
+    'front':   [[(190, 396), (230, 397), (272, 468), (263, 482), (250, 490), (240, 493), (190, 440)],
+                [(474, 400), (510, 400), (510, 440), (462, 492), (452, 492), (437, 482), (434, 470)]],
+    'quarter': [[(648, 396), (688, 397), (730, 468), (721, 482), (708, 490), (698, 493), (648, 440)],
+                [(914, 400), (950, 400), (950, 440), (902, 492), (892, 492), (877, 482), (874, 470)]],
+    'side':    [[(1290, 468), (1350, 392), (1378, 392), (1378, 424), (1316, 490), (1294, 490)]],
+    'back':    [[(1584, 396), (1624, 397), (1666, 468), (1657, 482), (1644, 490), (1634, 493), (1584, 440)],
+                [(1860, 400), (1896, 400), (1896, 440), (1848, 492), (1838, 492), (1823, 482), (1820, 470)]],
+}
+PISTOLS = {
+    'front':   [((268, 488), -125), ((431, 488), -55)],
+    'quarter': [((726, 491), -125), ((871, 486), -12)],
+    'side':    [((1277, 488), -8)],
+    'back':    [((1662, 488), -125), ((1817, 483), -55)],
+}
+
+
+def pistol(angle):
+    """A laser pistol as straight BGRA float on a 160 px canvas, its grip at the centre, the barrel pointing at angle
+    (degrees, image coordinates). Pointing left, it is mirrored top to bottom so the grip still hangs below."""
+    n, o = 160, 80
+    P = lambda pts: np.array([(o + x, o + y) for x, y in pts], np.int32)
+    body = P([(-12, -25), (34, -25), (40, -20), (40, -9), (-12, -9)])
+    barrel = P([(40, -21), (52, -21), (52, -13), (40, -13)])
+    tip = P([(52, -24), (58, -24), (58, -10), (52, -10)])
+    grip = P([(-10, -10), (5, -10), (2, 9), (-13, 7)])
+    guard = P([(5, -10), (15, -10), (13, -2), (5, -2)])
+    cell = P([(2, -21), (30, -21), (30, -15), (2, -15)])
+    top = P([(-10, -24), (33, -24), (36, -21), (-10, -21)])
+    c = np.zeros((n, n, 3), np.uint8); a = np.zeros((n, n), np.uint8)
+    for poly in (body, barrel, tip, grip, guard):   # the outline: everything, thick and black
+        cv2.fillPoly(a, [poly], 255); cv2.polylines(a, [poly], True, 255, 9)
+    cv2.fillPoly(c, [grip], (52, 48, 46)); cv2.fillPoly(c, [body], (66, 60, 58)); cv2.fillPoly(c, [barrel], (44, 40, 40))
+    cv2.fillPoly(c, [top], (128, 122, 118))                         # the light along the top of the slide
+    cv2.fillPoly(c, [cell], (255, 236, 70)); cv2.fillPoly(c, [tip], (255, 246, 160))   # the glowing cell and emitter
+    cv2.line(c, (o + 4, o - 18), (o + 28, o - 18), (255, 255, 235), 2)
+    for poly in (body, barrel, tip, grip, guard): cv2.polylines(c, [poly], True, (10, 10, 14), 4)
+    cv2.fillPoly(c, [P([(7, -8), (12, -8), (11, -4), (7, -4)])], (10, 10, 14))   # through the trigger guard
+    if np.cos(np.radians(angle)) < 0: c, a = c[::-1].copy(), a[::-1].copy()   # mirrored, so the turn leaves the grip below
+    M = cv2.getRotationMatrix2D((o, o), -angle, 1.0)
+    c = cv2.warpAffine(c, M, (n, n), flags=cv2.INTER_LINEAR); a = cv2.warpAffine(a, M, (n, n), flags=cv2.INTER_LINEAR)
+    return np.dstack([c.astype(np.float32), a.astype(np.float32) / 255])
+
+
+def blasters(c, a, view, x0, y0):
+    """The raider's blades swapped for laser pistols (in a crop at (x0, y0) of the sheet)."""
+    c, a = c.copy(), a.copy()
+    h, w = a.shape
+    hsv = cv2.cvtColor(np.clip(c, 0, 255).astype(np.uint8), cv2.COLOR_BGR2HSV)
+    skinpx = ((hsv[..., 0] <= 22) & (hsv[..., 1] < 170) & (hsv[..., 2] > 120)).astype(np.uint8)
+    zone = np.zeros((h, w), np.uint8)
+    for poly in BLADES[view]: cv2.fillPoly(zone, [np.array(poly, np.int32) - [x0, y0]], 1)
+    zone &= 1 - cv2.dilate(skinpx, np.ones((5, 5), np.uint8))
+    a0 = a.copy()
+    a[zone > 0] = 0
+    n, lbl, st, _ = cv2.connectedComponentsWithStats((a > 0.02).astype(np.uint8), connectivity=8)   # the blades' loose ends
+    if n > 2:
+        big = 1 + np.argmax(st[1:, 4])
+        a[np.isin(lbl, [k for k in range(1, n) if st[k, 4] < 0.04 * st[big, 4]])] = 0
+    # ink the new edge, where the cut opened the body
+    solid = (a > 0.5).astype(np.uint8)
+    edge = solid - cv2.erode(solid, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    edge &= cv2.dilate(zone, np.ones((9, 9), np.uint8))
+    c[edge > 0] = (12, 12, 16)
+    # the pistols, then each hand back over its grip
+    for (hx, hy), ang in PISTOLS[view]:
+        g = pistol(ang); n = g.shape[0]; px, py = hx - x0 - n // 2, hy - y0 - n // 2
+        ya, yb, xa, xb = max(0, py), min(h, py + n), max(0, px), min(w, px + n)
+        gg = g[ya - py:yb - py, xa - px:xb - px]; ga = gg[..., 3:4]
+        c[ya:yb, xa:xb] = c[ya:yb, xa:xb] * (1 - ga) + gg[..., :3] * ga
+        a[ya:yb, xa:xb] = np.maximum(a[ya:yb, xa:xb], ga[..., 0])
+        hand = np.zeros((h, w), np.uint8); cv2.circle(hand, (hx - x0, hy - y0), 13, 1, -1)
+        hand &= skinpx
+        hand = cv2.dilate(hand, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))) & (a0 > 0.5)
+        c[hand > 0] = np.where(skinpx[hand > 0][:, None] > 0, c[hand > 0], np.float32([12, 12, 16]))
+    return c, a
 
 
 def reskin(c, skin):
@@ -334,6 +416,7 @@ def pieces(enemy, view, skin=None):
     x0, y0, x1, y1, ground = box(enemy, view)
     a = cut(enemy, view)[y0:y1, x0:x1]
     c = src[y0:y1, x0:x1].astype(np.float32)
+    if skin and SKINS[skin].get('arms') == 'blasters': c, a = blasters(c, a, view, x0, y0)
     if skin: c = reskin(c, skin)
     if FIG[enemy].get('faces', {}).get(view, 1) < 0:
         a, c = a[:, ::-1].copy(), c[:, ::-1].copy()

@@ -3,18 +3,25 @@
 `neon-wasteland.html` is the whole game in one file. Open it in a browser (it works on phones; landscape shows the whole
 map, and in portrait you drag to look around). It is a Kingdom Rush-style tower defense on the Neon Wasteland map:
 
-- **5 towers** to build on the map's 7 build pads, each with 3 levels:
+- **6 towers** to build on the map's 7 build pads, each with 3 levels:
   - **Sniper:** long range, hits flyers, weak against armour.
   - **Plasma:** chain lightning that ignores armour.
   - **Railgun:** a piercing line shot, ground only.
-  - **Garrison:** three troopers block the road, with a movable rally point.
+  - **Garrison:** three troopers with laser pistols block the road at a movable rally point and shoot whatever is in
+    reach, flyers too (5/8/11 a shot, armour doesn't count).
+  - **Garage:** a mechanics' garage (from `../art/garage/reference.png`). Its three mechanics (a driller, a riveter
+    and one with a wrench) block the road and soak up hits (240/360/520 HP, armour 0.3/0.4/0.5, they patch
+    themselves up between fights) but barely scratch an enemy (4/6/8 a hit). Every enemy inside its range moves
+    25/30/35% slower, flyers too (a boss half as much): a red field on the ground, a red ring round each slowed enemy.
   - **Dragon:** a punk scrap-metal dragon that lobs napalm. Each glob leaves a fire patch on the road that burns
     every ground enemy walking through it (18/26/36 a second for 4/5/6 s, through armour). Patches don't stack, each
     dragon keeps at most 3, and drones and your own troopers are never hurt.
 - **5 enemies**: the raider, the scout (a fast robot dog), the enforcer (armoured), the drone (flying, can't be
   blocked), and the mech boss in wave 10. The raider, scout, enforcer and mech come from the enemy turnaround sheet
   (`../art/enemies/`): they turn to face where they walk (front, three-quarter, side or back) and their legs step in
-  time with the ground. The Garrison's troopers and the Squad's mercs wear the raider's rig in AEGIS blue and orange.
+  time with the ground. The Garrison's troopers and the Squad's mercs wear the raider's rig in AEGIS blue and orange
+  (the troopers with two laser pistols instead of its blades). The Garage's mechanics are cut from its painting
+  (`../art/garage/garage.py`, upscaled 4x first) and walk with a heavy waddle.
 - **2 spells**: Airstrike (3 missiles) and Drop Squad (2 mercs who block for 18 s).
 - **Waves**: 10 waves from two gates. Tapping the skull calls a wave early for bonus scrap. Selling refunds 60%.
 - **Stars**: 18+ lives left is 3 stars, 6+ is 2 stars.
@@ -61,27 +68,33 @@ portal swirls. The acid is found in the painting at load (its bright toxic green
 wires and smoke sources are placed by hand. It's calmer with reduced motion (slower acid, steady lights, a third of the
 particles, no pulses), stops while the tab is hidden, and its strength is in the Game Tuner (`fx.*`).
 
-Balance, from bot playtests (`sim.mjs`, 10 runs per strategy; each bot builds its plan on all 7 pads as soon as it can
+Balance, from bot playtests (`sim.mjs`, 4 to 10 runs per strategy; each bot builds its plan on all 7 pads as soon as it can
 afford each tower, a four-tower plan carrying on with its first three on pads 5-7, then spends everything on the
 cheapest upgrade). The numbers are the same as before the smaller layout: the 3 extra pads spread the scrap thinner, so
 the longer road makes it only a little easier. The boss has 2800 HP.
 
 | Strategy | Result |
 |---|---|
-| Mixed towers with spells (plasma, plasma, garrison, sniper) | wins every time, with about 15 lives (12 using only pads 1-4) |
-| Same, without spells | wins with about 15 lives (it lost at wave 10 with 4 pads) |
+| Mixed towers with spells (plasma, plasma, garrison, sniper) | wins every time, with about 18 lives (15 using only pads 1-4) |
+| Same, without spells | wins with about 17 lives |
+| Mixed with the Garage instead of the Garrison | wins every time, with about 18 lives (13 without spells) |
+| Plasma, plasma, Garage, dragon | wins every time, with about 17 lives |
+| Garage + railgun, Garage + Garrison, Garage + snipers, all Garage | loses (at wave 10, 10, 9 and 5-7) |
 | Sniper + railgun (with one plasma), or plasma + railgun | wins with 6–10 lives |
 | All sniper, all railgun, all garrison, all dragon | loses |
 | All plasma | wins with about 9 lives |
-| No anti-air (railgun + garrison, or dragons + garrisons) | loses at wave 8 |
+| No anti-air (railgun + garrison, or dragons + garrisons) | loses at wave 8 (the troopers' lasers hit flyers, but not enough on their own) |
 | No upgrades | loses at wave 10 |
 | Mixed with a dragon instead of the garrison | wins with about 7 lives (loses without spells) |
 | Mixed with a dragon instead of the sniper | wins with about 16 lives |
 | Sniper, plasma, railgun, dragon | wins with about 7 lives |
 | Two dragons + two plasmas | wins with about 7 lives |
-| Three dragons, or no anti-air on the right road | loses |
+| Three dragons | loses |
+| Plasma, dragon, garrison, sniper (nothing but the troopers hits drones on the right road) | wins with about 2 lives |
 
-Plasma is still the strongest tower (about three quarters of the damage in the mixed build), as before.
+Plasma is still the strongest tower (about three quarters of the damage in the mixed build), as before. The laser
+Garrison deals about 15% of it (its melee troopers dealt about 9%); the Garage about 5%: it's there to hold enemies
+and slow them for the others.
 
 The game's numbers are in the Game Tuner (`../tuner.json`, `tuning.schema.json`); `node tuning-check.mjs` checks the
 schema's defaults still match `game.html`.
@@ -89,7 +102,8 @@ schema's defaults still match `game.html`.
 Source: `game.html` with placeholders; `build.py` embeds `assets/` (the map, `assets/map.webp`, is the Map v3 painting;
 each tower's base and head layer is exported from `../towers2`) and the fonts into `dist/neon-wasteland.html`. `test.mjs` takes screenshots and
 `sim.mjs` runs the bot playtests (`node sim.mjs [runs] [strategy,...]`); `dragon-test.mjs` checks the dragon's fire,
-aim and the five-button build menu on every pad; `leash.mjs` checks garrison troopers stay in range; `living-test.mjs` checks the living map, measures its frame rate at
+aim and the six-button build menu on every pad; `garage-test.mjs` checks the Garage (its field, its mechanics) and the
+Garrison's lasers; `leash.mjs` checks both towers' troops stay in range; `living-test.mjs` checks the living map, measures its frame rate at
 phone sizes and saves frames and a short clip of it (`shots/`). They need Playwright:
 set `PLAYWRIGHT` to its `index.mjs` (they fall back to the cloud workspace's `/opt/node22` copy), and run them from this
 folder after `build.py`. `build.py` writes `dist/neon-wasteland.html`: copy it over `neon-wasteland.html`, the file testers get.

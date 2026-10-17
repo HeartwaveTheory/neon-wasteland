@@ -1,7 +1,7 @@
 // Dragon tower checks: fire patches burn over time, never stack, at most 3 per dragon, burn ignores armour,
 // afterburn, the lob leads its target and prefers enemies not on fire, drones and troopers are never hurt, restart
 // clears everything, 2x speed; with the real art the head faces its target and the glob leaves the mouth
-// (shots/16-dragon-aim.png); selling puts the fire out; the five-button build menu and the info panel on desktop, phones
+// (shots/16-dragon-aim.png); selling puts the fire out; the six-button build menu and the info panel on desktop, phones
 // and short landscape screens (shots/13-15, 19-21); the fire at the game's default camera (shots/17 desktop, 18 phone),
 // and a 2.3x close-up of it (shots/12-dragon.png). Run after build.py: node dragon-test.mjs
 // Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
@@ -109,7 +109,7 @@ const r = await p.evaluate(() => {
   const mh = mercs.map((m) => m.hp);
   N.build(0, 'garrison'); const gar = S.towers[0]; N.setRally(0, spot.x, spot.y);
   N.step(3);
-  out.droneHurt = +(dr.maxHp - dr.hp).toFixed(2); out.droneBurning = !!(dr.burnT > 0);
+  out.droneHurt = +(S.stats.dmg.dragon || 0).toFixed(2);   // fire damage only: the Garrison's troopers shoot the drone out.droneBurning = !!(dr.burnT > 0);
   out.mercsHurt = mercs.some((m, k) => m.hp < mh[k] - 0.01); out.mercsInFire = mercs.filter((m) => Math.hypot(m.x - spot.x, (m.y - spot.y) / 0.7) < 42).length;
   out.troopersHurt = gar.troops.some((t) => t.hp < t.maxHp); out.troopersInFire = gar.troops.filter((t) => Math.hypot(t.x - spot.x, (t.y - spot.y) / 0.7) < 42).length;
 
@@ -293,7 +293,7 @@ const fireScene = async (q) => q.evaluate(() => {
   check('default-camera shot (844x390 @3x): patches and a glob in flight', s2.patches >= 2 && s2.globs >= 1 && Math.abs(s2.cam - 0.5) < 0.02, JSON.stringify(s2));
 }
 
-// ------------------------------------------------------------------ build menu: five buttons, every pad, phones
+// ------------------------------------------------------------------ build menu: six buttons, every pad, phones
 // Short landscape screens (Chrome on Android with its address bar is about 300 px tall) and portrait phones included.
 // On every pad, before a pick, with each pick, and on a built tower's menu: buttons on screen, apart, not under the HUD
 // or the info panel; and the info panel never covers the HUD (the SQUAD button in portrait).
@@ -312,7 +312,7 @@ for (const [w, h, touch, shot] of [[1280, 720, false, '15-menu-desktop'], [844, 
         N.showInfo();
         const info = document.getElementById('info').getBoundingClientRect();
         const B = N.menuButtons(), tag = `pad ${i} ${pick || 'none'}`;
-        if (pick !== 'built' && B.length !== 5) bad.push(`${tag}: ${B.length} buttons`);
+        if (pick !== 'built' && B.length !== 6) bad.push(`${tag}: ${B.length} buttons`);
         for (const b of B) {
           const name = b.tower || b.kind;
           const box = { l: b.x - b.r, r: b.x + b.r, t: b.y - b.r - (b.tower === pick || b.tower === 'dragon' ? 16 : 0), b: b.y + b.r + (b.cost != null ? 10 : 0) };

@@ -1,4 +1,4 @@
-// Leash test: troopers must stay inside their tower's range and near their rally point.
+// Leash test: a tower's troops (Garrison troopers, Garage mechanics) must stay inside its range and near their rally point.
 // Playwright: $PLAYWRIGHT (path to its index.mjs) or the cloud workspace's copy.
 const { chromium } = await import(process.env.PLAYWRIGHT || '/opt/node22/lib/node_modules/playwright/index.mjs');
 const browser = await chromium.launch();
@@ -6,9 +6,10 @@ const page = await browser.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
 await page.goto('file://' + process.cwd() + '/dist/_test.html');
 await page.waitForFunction(() => window.__NW);
-const r = await page.evaluate(() => {
-  const N = window.__NW; N.start(); const S = N.S; S.gold = 99999; S.lives = 9999;
-  for (let i = 0; i < N.PADS.length; i++) N.build(i, 'garrison');
+for (const kind of ['garrison', 'garage']) {
+const r = await page.evaluate((kind) => {
+  const N = window.__NW; N.restart(); N.start(); const S = N.S; S.gold = 99999; S.lives = 9999;
+  for (let i = 0; i < N.PADS.length; i++) N.build(i, kind);
   const SQ = 0.7, ed = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) / SQ);
   const rally0 = S.towers.map((tw) => +ed(N.PADS[tw.i], tw.rally).toFixed(0));
   N.startWave(); S.spawning = [];
@@ -19,14 +20,15 @@ const r = await page.evaluate(() => {
     if (Math.round(t * 4) % 20 === 0) { add('enforcer', 'L', 0); add('enforcer', 'R', 0); }
     N.step(0.25);
     for (const tr of S.troops) {
-      if (tr.dead || tr.kind !== 'trooper') continue;
+      if (tr.dead || tr.kind === 'merc') continue;
       const tw = tr.tower;
-      maxTower = Math.max(maxTower, ed(N.PADS[tw.i], tr) - N.TOWERS.garrison.range[tw.lvl]);
+      maxTower = Math.max(maxTower, ed(N.PADS[tw.i], tr) - N.TOWERS[kind].range[tw.lvl]);
       if (tr.target && Math.hypot(tr.x - tr.target.x, tr.y - tr.target.y) < 36) { engaged++; maxRally = Math.max(maxRally, ed(tw.rally, tr)); }
     }
   }
-  return { rally0, range: N.TOWERS.garrison.range[0], beyondTowerRange: +maxTower.toFixed(1), maxFromRallyInMelee: +maxRally.toFixed(1), engaged, leaked: S.stats.leaked };
-});
+  return { kind, rally0, range: N.TOWERS[kind].range[0], beyondTowerRange: +maxTower.toFixed(1), maxFromRallyInMelee: +maxRally.toFixed(1), engaged, leaked: S.stats.leaked };
+}, kind);
 console.log(JSON.stringify(r));
+}
 console.log(errs.length ? errs.join('\n') : 'no errors');
 await browser.close();

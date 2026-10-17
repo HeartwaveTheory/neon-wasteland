@@ -15,7 +15,7 @@ PX = 1 / 0.23
 # lighter than the map: the towers are already drawn inked and banded (towers2), so this mostly sets their light in
 # the same flat steps and hatches their shadows
 TUNE = dict(bands=0.7, detail=0.9, hatch=0.3, outline=False, ink=0.6)
-for t in ['sniper', 'plasma', 'railgun', 'garrison', 'dragon']:
+for t in ['sniper', 'plasma', 'railgun', 'garrison', 'dragon', 'garage']:
     for layer in ['base', 'head']:
         im = cv2.imread(os.path.join(HERE, 'raw', 'towers', f'{t}-{layer}.webp'), cv2.IMREAD_UNCHANGED)
         a = im[..., 3].astype(np.float32) / 255

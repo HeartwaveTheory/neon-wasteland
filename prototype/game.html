@@ -136,9 +136,11 @@ const ASSET = {
   plasma_base: '__PLASMA_BASE__', plasma_head: '__PLASMA_HEAD__',
   railgun_base: '__RAILGUN_BASE__', railgun_head: '__RAILGUN_HEAD__',
   garrison_base: '__GARRISON_BASE__', garrison_head: '__GARRISON_HEAD__',
+  garage_base: '__GARAGE_BASE__', garage_head: '__GARAGE_HEAD__',
   dragon_base: '__DRAGON_BASE__', dragon_head: '__DRAGON_HEAD__',
   unit_raider: '__UNIT_RAIDER__', unit_scout: '__UNIT_SCOUT__', unit_enforcer: '__UNIT_ENFORCER__', unit_mech: '__UNIT_MECH__',
   unit_drone: '__UNIT_DRONE__', unit_trooper: '__UNIT_TROOPER__', unit_merc: '__UNIT_MERC__',
+  unit_garage_drill: '__UNIT_GARAGE_DRILL__', unit_garage_rivet: '__UNIT_GARAGE_RIVET__', unit_garage_wrench: '__UNIT_GARAGE_WRENCH__',
 };
 const MAP_W = 1672, MAP_H = 941;
 const SQ = 0.7;               // ground ellipse ratio: ranges are ellipses rx = r, ry = r * SQ
@@ -226,10 +228,23 @@ const TOWERS = {
     dtype: 'pierce', glow: '#ff8a1e', blurb: 'Slow piercing shot through every enemy in a line. Ground only.',
     head: { pivot: [270, 150], muzzle: [113, 135], faces: -1, aim: 0.55 },
   },
+  // Garrison troopers block like before but fight with laser pistols: each shoots the enemy it blocks, or else the one in
+  // its reach (ground ellipse round the trooper, inside the tower's range) closest to the HQ, flyers too. Energy: armour
+  // doesn't count.
   garrison: {
-    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [7, 11, 16], troopArmor: [0, 0.15, 0.3],
-    respawn: [10, 9, 8], glow: '#3a7bff', blurb: 'Three troopers hold the road near their rally point and never leave the tower\'s range. Tap Rally to move them.',
+    name: 'Garrison', cost: [80, 110, 150], range: [200, 200, 200], troopHp: [90, 140, 200], troopDmg: [5, 8, 11], troopRate: [0.9, 0.85, 0.8],
+    reach: [110, 120, 130], troopArmor: [0, 0.15, 0.3], respawn: [10, 9, 8], air: true, dtype: 'energy', glow: '#3a7bff',
+    blurb: 'Three troopers with laser pistols hold the road near their rally point and shoot anything in reach, flyers too. Tap Rally to move them.',
     head: { pivot: [256, 162], muzzle: [178, 429], faces: 0 },
+  },
+  // Garage: three mechanics who block and soak up hits (lots of health and armour, they patch themselves up between
+  // fights) but barely scratch an enemy; and a magnetic field: every enemy inside the tower's range moves slower (a
+  // boss: half as much). The building doesn't turn: its head layer is empty, its muzzle is the garage door.
+  garage: {
+    name: 'Garage', cost: [100, 130, 180], range: [170, 180, 190], troopHp: [240, 360, 520], troopDmg: [4, 6, 8], troopRate: [1.1, 1.1, 1.1],
+    troopArmor: [0.3, 0.4, 0.5], respawn: [12, 11, 10], slow: [0.25, 0.3, 0.35], regen: 12, glow: '#ff4b3a',
+    blurb: 'Three tough mechanics block the road and soak up hits, but barely scratch anything. Enemies in its range move slower. Tap Rally to move them.',
+    head: { pivot: [256, 300], muzzle: [196, 418], faces: 0 },
   },
   dragon: {
     name: 'Dragon', cost: [110, 150, 210], range: [210, 225, 240], dmg: [10, 16, 24], rate: [2.4, 2.2, 2.0], air: false,
@@ -239,7 +254,7 @@ const TOWERS = {
     head: { pivot: [272, 176], muzzle: [110.5, 194.8], faces: -1 },
   },
 };
-const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison', 'dragon'];
+const TOWER_KEYS = ['sniper', 'plasma', 'railgun', 'garrison', 'garage', 'dragon'];
 // Dragon napalm: the glob's flight time, live patches per dragon, afterburn (seconds, share of the patch's rate).
 const NAPALM = { flight: 0.6, maxPatches: 3, after: 1, afterK: 0.5 };
 
@@ -299,8 +314,8 @@ function makeThumbs() {
   for (const k of TOWER_KEYS) {
     const c = document.createElement('canvas'); c.width = c.height = 160;
     const g = c.getContext('2d');
-    g.drawImage(IMG[k + '_base'], 0, 0, 512, 470, 0, 0, 160, 147);
-    g.drawImage(IMG[k + '_head'], 0, 0, 512, 470, 0, 0, 160, 147);
+    g.drawImage(IMG[k + '_base'], 0, 0, 512, 512, 0, 0, 160, 160);
+    g.drawImage(IMG[k + '_head'], 0, 0, 512, 512, 0, 0, 160, 160);
     THUMB[k] = c;
   }
 }
@@ -344,6 +359,8 @@ function sfx(name) {
     case 'spit': noise(0.22, 0.34, 650, 0.6); tone('sawtooth', 260, 70, 0.2, 0.1); noise(0.14, 0.2, 2600, 1.4, 0.04); break;
     case 'sizzle': noise(0.6, 0.2, 5200, 0.6, 0, 'highpass'); noise(0.2, 0.34, 380, 0.7); tone('sine', 150, 45, 0.26, 0.15); break;
     case 'clang': noise(0.06, 0.25, 3200, 3); tone('triangle', 620, 420, 0.08, 0.06); break;
+    case 'laser': tone('square', 2100, 520, 0.09, 0.045); tone('sine', 3200, 900, 0.06, 0.03); noise(0.04, 0.08, 6000, 2); break;
+    case 'wrench': noise(0.05, 0.22, 1400, 2); tone('triangle', 300, 180, 0.09, 0.08); break;
     case 'boom': noise(0.6, 0.7, 300, 0.4); tone('sine', 110, 30, 0.6, 0.45); break;
     case 'coin': tone('square', 1320, 1320, 0.05, 0.05); tone('square', 1760, 1760, 0.07, 0.05, 0.05); break;
     case 'build': noise(0.08, 0.3, 1800, 2); tone('square', 220, 330, 0.1, 0.1, 0.05); tone('square', 330, 440, 0.12, 0.1, 0.12); break;
@@ -418,7 +435,7 @@ function build(i, kind) {
   S.gold -= def.cost[0];
   const pad = PADS[i];
   const tw = { id: S.uid++, i, kind, lvl: 0, spent: def.cost[0], cd: 0.5, flip: 1, recoil: 0, charge: 0, aim: null, built: 0.35, pulse: 0 };
-  if (kind === 'garrison') {
+  if (def.troopHp) {   // Garrison, Garage: three units at a rally point on the nearest road
     const n = nearestOnPaths(pad.x, pad.y);
     tw.rally = { x: n.x, y: n.y };
     tw.troops = [];
@@ -436,7 +453,7 @@ function upgrade(i) {
   const c = def.cost[tw.lvl + 1];
   if (S.gold < c) return false;
   S.gold -= c; tw.spent += c; tw.lvl++; tw.built = 0.35;
-  if (tw.kind === 'garrison') for (const tr of tw.troops) { tr.maxHp = def.troopHp[tw.lvl]; tr.hp = tr.maxHp; tr.dead = false; tr.respawn = 0; }
+  if (tw.troops) for (const tr of tw.troops) { tr.maxHp = def.troopHp[tw.lvl]; tr.hp = tr.maxHp; tr.dead = false; tr.respawn = 0; }
   sfx('build'); floatText(PADS[i].x, PADS[i].y - 200 * TS - 10, 'LEVEL ' + (tw.lvl + 1), '#ffd23a');
   burst(PADS[i].x, PADS[i].y - 90 * TS, def.glow, 22, 120, 4, 0.7);
   return true;
@@ -458,10 +475,10 @@ function sell(i) {
   burst(PADS[i].x, PADS[i].y - 30, '#d9c9a8', 20, 100, 4, 0.6, 30);
 }
 function setRally(i, x, y) {
-  const tw = S.towers[i]; if (!tw || tw.kind !== 'garrison') return false;
+  const tw = S.towers[i]; if (!tw || !tw.troops) return false;
   const n = nearestOnPaths(x, y);
   if (n.dist > 60) return false;
-  if (edist(PADS[i].x, PADS[i].y, n.x, n.y) > TOWERS.garrison.range[tw.lvl]) return false;
+  if (edist(PADS[i].x, PADS[i].y, n.x, n.y) > TOWERS[tw.kind].range[tw.lvl]) return false;
   tw.rally = { x: n.x, y: n.y };
   for (const tr of tw.troops) { releaseTrooper(tr); }
   S.fx.push({ kind: 'flag', x: n.x, y: n.y, life: 0.8, max: 0.8 });
@@ -509,7 +526,7 @@ function updateTower(tw, dt) {
   tw.recoil = Math.max(0, tw.recoil - dt * 6);
   tw.built = Math.max(0, tw.built - dt);
   tw.pulse = Math.max(0, tw.pulse - dt * 3);
-  if (tw.kind === 'garrison') return updateGarrison(tw, dt);
+  if (tw.troops) return updateGarrison(tw, dt);
   if (def.head.aim) trackAim(tw, dt);
   tw.cd -= dt;
   const range = def.range[tw.lvl];
@@ -748,31 +765,33 @@ function updatePatches(dt) {
   }
 }
 
-// ---------------------------------------------------------------- troopers (garrison + squad)
-// Troopers only fight inside their guard zone (this ground radius around the rally
-// point) and, for a Garrison, inside the tower's range; outside it they let go.
+// ---------------------------------------------------------------- troops (Garrison troopers, Garage mechanics, the squad)
+// Troops only fight inside their guard zone (this ground radius around the rally point) and, for a tower's troops,
+// inside the tower's range; outside it they let go.
 const GUARD = 60;
+const TROOP_SHEETS = { trooper: ['trooper', 'trooper', 'trooper'], mechanic: ['garage_drill', 'garage_rivet', 'garage_wrench'] };
+const TROOP_H = { trooper: [26, 26, 26], mechanic: [31, 27, 27], merc: [26] };   // drawn height on the map (px)
 function inZone(tr, e, post) {
   if (edist(post.x, post.y, e.x, e.y) > GUARD) return false;
-  if (tr.kind !== 'trooper') return true;
+  if (tr.kind === 'merc') return true;
   const pad = PADS[tr.tower.i];
-  return edist(pad.x, pad.y, e.x, e.y) <= TOWERS.garrison.range[tr.tower.lvl];
+  return edist(pad.x, pad.y, e.x, e.y) <= TOWERS[tr.tower.kind].range[tr.tower.lvl];
 }
 function trooperPost(rally, k) {
   const off = [[-16, -6], [16, -6], [0, 10]][k % 3];
   return { x: rally.x + off[0], y: rally.y + off[1] };
 }
 function spawnTrooper(tw, k, initial) {
-  const def = TOWERS.garrison, pad = PADS[tw.i];
+  const def = TOWERS[tw.kind], pad = PADS[tw.i];
   const [gx, gy] = spriteToMap(pad, def.head.muzzle[0], def.head.muzzle[1]);
-  const tr = { id: S.uid++, tower: tw, k, x: gx + rand(-6, 6), y: gy + rand(-4, 4), hp: def.troopHp[tw.lvl], maxHp: def.troopHp[tw.lvl], target: null, cd: 0, dead: false, respawn: 0, face: 1, swing: 0, kind: 'trooper' };
+  const kind = tw.kind === 'garage' ? 'mechanic' : 'trooper';
+  const tr = { id: S.uid++, tower: tw, k, x: gx + rand(-6, 6), y: gy + rand(-4, 4), hp: def.troopHp[tw.lvl], maxHp: def.troopHp[tw.lvl], target: null, cd: 0, dead: false, respawn: 0, face: 1, swing: 0, shot: 0, kind };
   if (!initial) tr.hp = tr.maxHp;
   tw.troops[k] = tr; S.troops.push(tr);
   return tr;
 }
 function releaseTrooper(tr) { if (tr.target) { tr.target.blockers = (tr.target.blockers || []).filter((b) => b !== tr); tr.target = null; } }
 function updateGarrison(tw, dt) {
-  const def = TOWERS.garrison;
   for (let k = 0; k < 3; k++) {
     const tr = tw.troops[k];
     if (tr.dead) {
@@ -784,12 +803,13 @@ function updateGarrison(tw, dt) {
 function updateTroop(tr, dt) {
   if (tr.dead) return;
   tr.swing = Math.max(0, tr.swing - dt * 4);
+  tr.shot = Math.max(0, (tr.shot || 0) - dt);
   const squad = tr.kind === 'merc';
   if (squad) { tr.life -= dt; if (tr.life <= 0) { tr.dead = true; releaseTrooper(tr); burst(tr.x, tr.y - 12, '#3ff0ff', 8, 50, 2.5, 0.4); return; } }
+  const def = squad ? null : TOWERS[tr.tower.kind];
   const post = squad ? tr.post : trooperPost(tr.tower.rally, tr.k);
   const lvl = squad ? 0 : tr.tower.lvl;
-  const dmg = squad ? SPELLS.squad.dmg : TOWERS.garrison.troopDmg[lvl];
-  // find a target near the post: prefer an enemy no one is blocking
+  // find an enemy to block near the post: prefer one no one is blocking
   if (tr.target && (tr.target.dead || tr.target.def.air || !inZone(tr, tr.target, post))) releaseTrooper(tr);
   if (!tr.target) {
     let best = null, bd = Infinity, assist = null, ad = Infinity;
@@ -807,23 +827,68 @@ function updateTroop(tr, dt) {
   if (tr.target) { const side = tr.x < tr.target.x ? -1 : 1; gx = tr.target.x + side * (tr.target.def.boss ? 30 : 13); gy = tr.target.y + 2; }
   const dx = gx - tr.x, dy = gy - tr.y, d = Math.hypot(dx, dy);
   tr.moving = d > 2;
-  if (d > 2) { const v = Math.min(d, 75 * dt); tr.x += (dx / d) * v; tr.y += (dy / d) * v; tr.face = dx < 0 ? -1 : 1; tr.walk = (tr.walk || 0) + v; steer(tr, dx / d, dy / d, dt, 10); }
+  const speed = tr.kind === 'mechanic' ? 62 : 75;
+  if (d > 2) { const v = Math.min(d, speed * dt); tr.x += (dx / d) * v; tr.y += (dy / d) * v; tr.face = dx < 0 ? -1 : 1; tr.walk = (tr.walk || 0) + v; steer(tr, dx / d, dy / d, dt, 10); }
   const tg = tr.target;
-  if (tg && d < 8) {
+  if (tr.kind === 'trooper') trooperShoot(tr, def, lvl, dt);
+  else if (tg && d < 8) {   // the squad's blades, the mechanics' tools
     tr.face = tg.x < tr.x ? -1 : 1;
     tr.cd -= dt;
-    if (tr.cd <= 0) { tr.cd = 0.8; tr.swing = 1; burst(tg.x, tg.y - 14, '#fff3c8', 3, 50, 2, 0.2); if (Math.random() < 0.5) sfx('clang'); damage(tg, dmg, 'phys', squad ? 'squad' : 'garrison'); }
+    if (tr.cd <= 0) {
+      tr.cd = squad ? 0.8 : def.troopRate[lvl]; tr.swing = 1; burst(tg.x, tg.y - 14, '#fff3c8', 3, 50, 2, 0.2);
+      if (Math.random() < 0.5) sfx(squad ? 'clang' : 'wrench');
+      damage(tg, squad ? SPELLS.squad.dmg : def.troopDmg[lvl], 'phys', squad ? 'squad' : tr.tower.kind);
+    }
   }
-  if (!tr.target && d <= 2 && tr.hp < tr.maxHp) tr.hp = Math.min(tr.maxHp, tr.hp + 4 * dt);
+  if (!tr.target && d <= 2 && tr.hp < tr.maxHp) tr.hp = Math.min(tr.maxHp, tr.hp + (def && def.regen || 4) * dt);
+}
+// Where a trooper's pistol fires from: its hand, in the side view it is drawn in when it shoots (game units from its
+// feet, facing right; turnaround.py's PISTOLS.side, measured on the sheet).
+const MUZZLE = { x: 9.5, y: -5.5 };
+function blasterAt(tr) { return [tr.x + tr.face * MUZZLE.x, tr.y + MUZZLE.y]; }
+function trooperShoot(tr, def, lvl, dt) {
+  tr.cd -= dt;
+  if (tr.cd > 0) return;
+  const pad = PADS[tr.tower.i], reach = def.reach[lvl], range = def.range[lvl];
+  let tg = tr.target && !tr.target.dead ? tr.target : null;
+  if (!tg) {   // the one in reach closest to the HQ
+    let best = Infinity;
+    for (const e of S.enemies) {
+      if (e.dead || edist(tr.x, tr.y, e.x, e.y) > reach || edist(pad.x, pad.y, e.x, e.y) > range) continue;
+      const rem = PATHS[e.path].len - e.d;
+      if (rem < best) { best = rem; tg = e; }
+    }
+  }
+  if (!tg) return;
+  tr.cd = def.troopRate[lvl];
+  if (!tr.moving) tr.face = tg.x < tr.x ? -1 : 1;
+  tr.shot = 0.3;
+  const [mx, my] = blasterAt(tr), ty = aimY(tg);
+  S.fx.push({ kind: 'laser', x1: mx, y1: my, x2: tg.x, y2: ty, life: 0.14, max: 0.14 });
+  S.fx.push({ kind: 'flash', x: mx, y: my, r: 8, life: 0.07, max: 0.07, color: 'rgba(120,235,255,.9)' });
+  burst(tg.x, ty, '#9ff4ff', 3, 45, 1.8, 0.2);
+  sfx('laser');
+  damage(tg, def.troopDmg[lvl], def.dtype, 'garrison');
 }
 function hurtTroop(tr, amt) {
-  const armor = tr.kind === 'merc' ? 0.1 : TOWERS.garrison.troopArmor[tr.tower.lvl];
+  const def = tr.kind === 'merc' ? null : TOWERS[tr.tower.kind];
+  const armor = def ? def.troopArmor[tr.tower.lvl] : 0.1;
   tr.hp -= amt * (1 - armor); tr.hit = 0.12;
   if (tr.hp <= 0) {
     tr.dead = true; releaseTrooper(tr);
     burst(tr.x, tr.y - 12, '#7c8698', 10, 70, 3, 0.5, 30);
-    if (tr.kind === 'trooper') tr.respawn = TOWERS.garrison.respawn[tr.tower.lvl];
+    if (def) tr.respawn = def.respawn[tr.tower.lvl];
   }
+}
+// Garage fields: an enemy inside a Garage's range moves slower (the strongest field counts; a boss: half as much).
+function fieldsNow() {
+  S.fields = [];
+  for (const tw of S.towers) if (tw && tw.kind === 'garage') S.fields.push({ x: PADS[tw.i].x, y: PADS[tw.i].y, r: TOWERS.garage.range[tw.lvl], slow: TOWERS.garage.slow[tw.lvl] });
+}
+function slowOf(e) {
+  let s = 0;
+  for (const f of S.fields || []) if (s < f.slow && edist(f.x, f.y, e.x, e.y) <= f.r) s = f.slow;
+  return e.def.boss ? s * 0.5 : s;
 }
 
 // ---------------------------------------------------------------- enemies
@@ -840,6 +905,7 @@ function updateEnemy(e, dt) {
   e.hit = Math.max(0, e.hit - dt);
   e.blockers = (e.blockers || []).filter((b) => !b.dead && b.target === e);
   const blocked = e.blockedNow = !e.def.air && e.blockers.some((b) => Math.hypot(b.x - e.x, b.y - e.y) < (e.def.boss ? 52 : 24));
+  e.slow = slowOf(e);
   if (blocked) {
     e.cd -= dt;
     const b = e.blockers[0];
@@ -850,8 +916,9 @@ function updateEnemy(e, dt) {
       else hurtTroop(b, e.def.dmg);
     }
   } else {
-    e.d += e.def.speed * dt;
-    e.walk = (e.walk || 0) + e.def.speed * dt;   // map px walked (walkFrame)
+    const v = e.def.speed * (1 - e.slow);
+    e.d += v * dt;
+    e.walk = (e.walk || 0) + v * dt;   // map px walked (walkFrame)
   }
   e.swing = Math.max(0, (e.swing || 0) - dt * 4);
   const p = pathAt(PATHS[e.path], e.d);
@@ -941,6 +1008,7 @@ function update(dt) {
   if (S.over) { S.t += dt; updateFx(dt); return; }
   S.t += dt;
   updateWaves(dt);
+  fieldsNow();
   for (const e of S.enemies) if (!e.dead) updateEnemy(e, dt);
   for (const tw of S.towers) if (tw) updateTower(tw, dt);
   for (const tr of S.troops) updateTroop(tr, dt);
@@ -975,12 +1043,15 @@ function hitTint(e) { return e.hit > 0 ? '#ffffff' : null; }
 // Units are sprite sheets, drawn facing right with their feet at (80, 150) of a 160-unit frame (flipped to face left).
 // The scout, raider, enforcer and mech, and the troops, come from the turnaround sheet (../art/enemies/turnaround.py):
 // one row per view (front, three-quarter, side, back), `walk` walk frames then 2 attack frames; the drone is one row of
-// 6 + 2. stride: map px walked per walk cycle, so the feet keep pace with the ground. sh: the sprite's height in its
-// 160-unit frame (the troops'; the enemies' is ENEMIES[].sh).
+// 6 + 2, and so are the Garage's mechanics (../art/garage/garage.py: one view, a waddle and a swing). stride: map px
+// walked per walk cycle, so the feet keep pace with the ground. sh: the sprite's height in its 160-unit frame (the
+// troops'; the enemies' is ENEMIES[].sh).
 const SHEETS = {
   scout: { rows: 4, walk: 8, stride: 28 }, raider: { rows: 4, walk: 8, stride: 26 }, enforcer: { rows: 4, walk: 8, stride: 30 },
-  mech: { rows: 4, walk: 8, stride: 40 }, trooper: { rows: 4, walk: 8, stride: 24, sh: 96 }, merc: { rows: 4, walk: 8, stride: 24, sh: 96 },
+  mech: { rows: 4, walk: 8, stride: 40 }, trooper: { rows: 4, walk: 8, stride: 24, sh: 102 }, merc: { rows: 4, walk: 8, stride: 24, sh: 96 },
   drone: { rows: 1, walk: 6 },
+  garage_drill: { rows: 1, walk: 6, stride: 20, sh: 112 }, garage_rivet: { rows: 1, walk: 6, stride: 20, sh: 86 },
+  garage_wrench: { rows: 1, walk: 6, stride: 20, sh: 78 },
 };
 const VIEW = { front: 0, quarter: 1, side: 2, back: 3 };
 function drawSprite(sheet, frame, x, y, face, scale, flash, row = 0) {
@@ -1012,6 +1083,7 @@ function drawEnemy(e) {
   if (d.air) {
     const hy = HOVER + Math.sin(S.t * 4 + e.seed) * 3;
     ctx.globalAlpha = clamp(e.d / FADE_IN, 0, 1);
+    if (e.slow > 0) slowMark(e);
     drawSprite('drone', Math.floor(S.t * 18 + e.seed) % 6, e.x, e.y - hy + 66 * sc, e.face, sc, e.hit > 0);   // body centre (80, 84) of the frame sits at the hover height
     ctx.globalAlpha = 1;
     return;
@@ -1020,6 +1092,7 @@ function drawEnemy(e) {
   // there, fading in over their first steps
   const fade = clamp(e.d / FADE_IN, 0, 1);
   if (fade < 1) ctx.globalAlpha = fade;
+  if (e.slow > 0) slowMark(e);
   shadow(e.x, e.y, d.shadow, d.shadow * 0.4);
   const blocked = e.blockedNow;
   const sh = SHEETS[e.type];
@@ -1029,19 +1102,42 @@ function drawEnemy(e) {
   if (e.burnT > 0) drawBurning(e);
   if (d.boss && Math.random() < 0.35) S.parts.push({ x: e.x - e.face * 14, y: e.y - d.h * 0.95, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(60,56,60,.55)', size: rand(4, 7), g: -8, soft: true });
 }
+// A slowed enemy (in a Garage's field): a red ring round its feet, flickering, and now and then a spark.
+function slowMark(e) {
+  const r = e.def.shadow + 3;
+  ctx.strokeStyle = `rgba(255,75,58,${0.6 + 0.25 * Math.sin(S.t * 9 + e.seed)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(e.x, e.y, r, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+  if (Math.random() < 0.03) S.parts.push({ x: e.x + rand(-r, r), y: e.y, vx: rand(-20, 20), vy: -rand(30, 60), life: 0.35, max: 0.35, color: '#ff8a5a', size: 1.6, g: 160 });
+}
+// A Garage's magnetic field on the ground: its edge, faint and slowly turning, and a ripple running out to it.
+function drawField(tw) {
+  const pad = PADS[tw.i], r = TOWERS.garage.range[tw.lvl], ph = (S.t / 1.8 + tw.id * 0.31) % 1;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,75,58,.5)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); ctx.lineDashOffset = -S.t * 8;
+  ctx.beginPath(); ctx.ellipse(pad.x, pad.y, r, r * SQ, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  const q = r * (0.25 + 0.75 * ph);
+  ctx.strokeStyle = `rgba(255,95,70,${0.45 * (1 - ph)})`; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(pad.x, pad.y, q, q * SQ, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+}
 function drawTroop(tr) {
   if (tr.dead) return;
-  const merc = tr.kind === 'merc';
+  const merc = tr.kind === 'merc', mech = tr.kind === 'mechanic';
   let yoff = 0;
   if (merc && tr.drop > 0) { yoff = -tr.drop * 300; tr.drop = Math.max(0, tr.drop - 1 / 60); }
-  shadow(tr.x, tr.y, 6, 2.5);
+  shadow(tr.x, tr.y, mech ? 8 : 6, mech ? 3 : 2.5);
   ctx.save();
   if (merc && tr.life < 3) ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 10));
   const fighting = tr.target && Math.hypot(tr.x - tr.target.x, tr.y - tr.target.y) < 40;
-  const sheet = merc ? 'merc' : 'trooper', sh = SHEETS[sheet], sc = 26 / sh.sh;
-  if (tr.swing > 0 || fighting) drawSprite(sheet, sh.walk + (tr.swing > 0 && tr.swing <= 0.5 ? 1 : 0), tr.x, tr.y + yoff, tr.face, sc, tr.hit > 0, VIEW.side);
-  else if (tr.moving) { const v = viewOf(tr.vx, tr.vy); drawSprite(sheet, walkFrame(tr, sh), tr.x, tr.y + yoff, v.face, sc, tr.hit > 0, v.row); }
-  else drawSprite(sheet, 0, tr.x, tr.y + yoff, 1, sc, tr.hit > 0, VIEW.front);   // standing guard, facing out
+  const sheet = merc ? 'merc' : TROOP_SHEETS[tr.kind][tr.k], sh = SHEETS[sheet], sc = (merc ? TROOP_H.merc[0] : TROOP_H[tr.kind][tr.k]) / sh.sh;
+  const x = tr.x, y = tr.y + yoff, flash = tr.hit > 0, hit = sh.walk + (tr.swing > 0 && tr.swing <= 0.5 ? 1 : 0);
+  if (mech) {   // one view: walking, or hammering at its enemy
+    if (tr.swing > 0 || fighting) drawSprite(sheet, hit, x, y, tr.face, sc, flash);
+    else drawSprite(sheet, tr.moving ? walkFrame(tr, sh) : 0, x, y, tr.face, sc, flash);
+  } else if (tr.moving) { const v = viewOf(tr.vx, tr.vy); drawSprite(sheet, walkFrame(tr, sh), x, y, v.face, sc, flash, v.row); }
+  else if (merc && (tr.swing > 0 || fighting)) drawSprite(sheet, hit, x, y, tr.face, sc, flash, VIEW.side);
+  else if (!merc && (tr.shot > 0 || fighting)) drawSprite(sheet, 0, x - Math.max(0, tr.shot - 0.2) * 12 * tr.face, y, tr.face, sc, flash, VIEW.side);   // aiming, side on, kicked back by each shot
+  else drawSprite(sheet, 0, x, y, 1, sc, flash, VIEW.front);   // standing guard, facing out
   tr.hit = Math.max(0, (tr.hit || 0) - 1 / 60);
   ctx.restore();
 }
@@ -1291,6 +1387,14 @@ function drawFx() {
       strokePts([[f.x1, f.y1], [f.x2, f.y2]], `rgba(255,120,30,${0.45 * k})`, 22 * k + 4);
       strokePts([[f.x1, f.y1], [f.x2, f.y2]], `rgba(255,190,90,${0.85 * k})`, 7 * k + 2);
       strokePts([[f.x1, f.y1], [f.x2, f.y2]], `rgba(255,255,240,${k})`, 2.5);
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (f.kind === 'laser') {   // a trooper's pistol: a short bright bolt flying to its target over a faint trail
+      const L = Math.hypot(f.x2 - f.x1, f.y2 - f.y1) || 1, t1 = Math.min(1, (1 - k) * 1.6), t0 = Math.max(0, t1 - 18 / L);
+      const at = (t) => [f.x1 + (f.x2 - f.x1) * t, f.y1 + (f.y2 - f.y1) * t];
+      ctx.globalCompositeOperation = 'lighter';
+      strokePts([[f.x1, f.y1], at(t1)], `rgba(63,190,255,${0.22 * k})`, 2);
+      strokePts([at(t0), at(t1)], `rgba(63,200,255,${0.4 + 0.4 * k})`, 5);
+      strokePts([at(t0), at(t1)], `rgba(235,255,255,${0.5 + 0.5 * k})`, 2);
       ctx.globalCompositeOperation = 'source-over';
     } else if (f.kind === 'flash') {
       glowDot(f.x, f.y, f.r * (0.6 + k * 0.6), f.color);
@@ -1709,8 +1813,9 @@ function render() {
     const kind = tw ? tw.kind : S.sel.pick;
     if (kind) { const lvl = tw ? Math.min(2, tw.lvl + (S.sel.preview === 'up' ? 1 : 0)) : 0; drawRange(PADS[i].x, PADS[i].y, TOWERS[kind].range[lvl], TOWERS[kind].glow); }
   }
-  for (const tw of S.towers) if (tw && tw.kind === 'garrison') {
-    const r = tw.rally; ctx.strokeStyle = 'rgba(63,240,255,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+  for (const tw of S.towers) if (tw && tw.kind === 'garage') drawField(tw);
+  for (const tw of S.towers) if (tw && tw.troops) {
+    const r = tw.rally; ctx.strokeStyle = tw.kind === 'garage' ? 'rgba(255,90,70,.5)' : 'rgba(63,240,255,.5)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.ellipse(r.x, r.y, GUARD, GUARD * SQ, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   }
   // ground units, towers and troops, sorted by depth; air units after
@@ -1731,7 +1836,7 @@ function render() {
     const top = e.def.air ? HOVER + 18 : e.def.h + 8;
     hpBar(e.x, e.y - top, e.hp, e.maxHp, e.def.boss ? 56 : 20, e.def.boss ? '#ff3a4a' : '#7dff5a');
   }
-  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - 33, tr.hp, tr.maxHp, 16, '#3ff0ff');
+  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - (tr.kind === 'mechanic' ? 37 : 33), tr.hp, tr.maxHp, 16, '#3ff0ff');
   drawFx();
   // HQ damage flash
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1783,25 +1888,25 @@ function menuButtons() {
   const i = S.sel.pad, pad = PADS[i], tw = S.towers[i];
   const [cx, cy0] = toScreen(pad.x, pad.y - 70), top = HUDR ? HUDR.top + 6 : 50;
   if (!tw) {
-    // five build buttons evenly round a bigger ring: the Dragon on top, the first four keep their old corners.
-    // The ring stays clear of the top HUD (and the TAP AGAIN label above the top button), of the spell buttons (it slides
-    // right) and of the info panel (a fixed reserve for it, so the ring never jumps when the panel's text changes;
-    // on short screens placeInfo moves the panel out of the way instead).
-    const R = VH < 380 ? 66 : 70, ang = { dragon: -90, plasma: -18, garrison: 54, railgun: 126, sniper: 198 }, r = 27;
+    // six build buttons evenly round a bigger ring (a hexagon, flat top and bottom), the troop towers side by side
+    // underneath. The ring stays clear of the top HUD (and the TAP AGAIN label above the top buttons), of the spell
+    // buttons (it slides right) and of the info panel (a fixed reserve for it, so the ring never jumps when the panel's
+    // text changes; on short screens placeInfo moves the panel out of the way instead).
+    const R = VH < 380 ? 68 : 72, ang = { sniper: -120, dragon: -60, plasma: 0, garrison: 60, garage: 120, railgun: 180 }, r = 27;
     const off = TOWER_KEYS.map((k) => [Math.cos((ang[k] * Math.PI) / 180) * R, Math.sin((ang[k] * Math.PI) / 180) * R, r]);
-    const lo = Math.max(R + 96, top + R + r + 16);
-    const cy = clamp(cy0, lo, Math.max(lo, VH - 86 - R * 0.81 - 37));
+    const lo = Math.max(R + 96, top + R * 0.87 + r + 16);
+    const cy = clamp(cy0, lo, Math.max(lo, VH - 86 - R * 0.87 - 37));
     const x = clearOfSpells(clamp(cx, R + 34, VW - R - 34), cy, off, VW - R - 34);
     return TOWER_KEYS.map((k, n) => ({ kind: 'build', tower: k, x: x + off[n][0], y: cy + off[n][1], r, cost: TOWERS[k].cost[0], cx: x, cy, R }));
   }
   const R = 62, lo = Math.max(R + 64, top + R + 25), cy = clamp(cy0, lo, Math.max(lo, VH - R - 50));
-  const off = [[0, -R, 25], [0, R, 22]]; if (tw.kind === 'garrison') off.push([-R, 0, 22]);
+  const off = [[0, -R, 25], [0, R, 22]]; if (tw.troops) off.push([-R, 0, 22]);
   const x = clearOfSpells(clamp(cx, R + 30, VW - R - 30), cy, off, VW - R - 30);
   const def = TOWERS[tw.kind];
   const btns = [];
   btns.push({ kind: 'up', x, y: cy - R, r: 25, cost: tw.lvl < 2 ? def.cost[tw.lvl + 1] : null, cx: x, cy, R });
   btns.push({ kind: 'sell', x, y: cy + R, r: 22, cost: Math.round(tw.spent * 0.6), cx: x, cy });
-  if (tw.kind === 'garrison') btns.push({ kind: 'rally', x: x - R, y: cy, r: 22, cx: x, cy });
+  if (tw.troops) btns.push({ kind: 'rally', x: x - R, y: cy, r: 22, cx: x, cy });
   return btns;
 }
 function drawMenu() {
@@ -1842,7 +1947,7 @@ function showInfo() {
   // the title in <b>, the rest in .txt (hidden when the panel has to go compact, see placeInfo)
   if (S.aiming === 'air') html = '<b>AIRSTRIKE</b><span class="txt">Tap the map to call three missiles. Hits flyers too.</span>';
   else if (S.aiming === 'squad') html = '<b>DROP SQUAD</b><span class="txt">Tap a road to drop two mercs who block for 18 seconds.</span>';
-  else if (S.aiming === 'rally') html = '<b>RALLY</b><span class="txt">Tap the road near the Garrison to move its troopers.</span>';
+  else if (S.aiming === 'rally') { const k = S.sel && S.towers[S.sel.pad] ? S.towers[S.sel.pad].kind : 'garrison'; html = `<b>RALLY</b><span class="txt">Tap the road near the ${TOWERS[k].name} to move its ${k === 'garage' ? 'mechanics' : 'troopers'}.</span>`; }
   else if (S.sel) {
     const tw = S.towers[S.sel.pad];
     if (!tw && S.sel.pick) { const d = TOWERS[S.sel.pick]; html = `<b>${d.name.toUpperCase()} · ${d.cost[0]} SCRAP</b><span class="txt">${d.blurb}</span>`; }
@@ -1850,7 +1955,8 @@ function showInfo() {
     else {
       const d = TOWERS[tw.kind];
       const L = tw.lvl;
-      const stat = tw.kind === 'garrison' ? `Troopers ${d.troopHp[L]} HP · hit ${d.troopDmg[L]}` : tw.kind === 'plasma' ? `Hit ${d.dmg[L]} × ${d.chain[L]} targets`
+      const stat = tw.kind === 'garrison' ? `Troopers ${d.troopHp[L]} HP · laser ${d.troopDmg[L]} every ${d.troopRate[L]}s`
+        : tw.kind === 'garage' ? `Mechanics ${d.troopHp[L]} HP · enemies in range ${Math.round(d.slow[L] * 100)}% slower` : tw.kind === 'plasma' ? `Hit ${d.dmg[L]} × ${d.chain[L]} targets`
         : tw.kind === 'dragon' ? `Napalm every ${d.rate[L]}s · fire burns ${d.burn[L]}/s for ${d.patchLife[L]}s` : `Hit ${d.dmg[L]} every ${d.rate[L]}s`;
       const next = L < 2 ? ` · Upgrade ${d.cost[L + 1]}` + (tw.kind === 'dragon' ? ` (${d.burn[L + 1]}/s, ${d.patchLife[L + 1]}s)` : '') : ' · Max level';
       html = `<b>${d.name.toUpperCase()} · LEVEL ${tw.lvl + 1}</b><span class="meta txt">${stat}${next}</span>`;

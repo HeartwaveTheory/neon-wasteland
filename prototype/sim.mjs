@@ -31,6 +31,14 @@ const STRATS = {
   drg3:       { plan: ['dragon', 'dragon', 'dragon', 'plasma'], spells: true },
   drg_gar:    { plan: ['garrison', 'dragon', 'dragon', 'garrison'], spells: true }, // no anti-air
   dragons:    { plan: ['dragon', 'dragon', 'dragon', 'dragon'], spells: true },
+  // the Garage (tanky blockers, a slowing field, little damage of its own): with damage towers round it, or too many
+  mix_gge:    { plan: ['plasma', 'plasma', 'garage', 'sniper'], spells: true },     // the garage instead of the garrison
+  mix_gge_ns: { plan: ['plasma', 'plasma', 'garage', 'sniper'], spells: false },
+  gge_drg:    { plan: ['plasma', 'plasma', 'garage', 'dragon'], spells: true },     // slowed in the fire
+  gge_rail:   { plan: ['garage', 'railgun', 'plasma', 'sniper'], spells: true },
+  gge_gar:    { plan: ['garage', 'garrison', 'plasma', 'sniper'], spells: true },   // both troop towers
+  gge_snip:   { plan: ['garage', 'sniper', 'sniper', 'garage'], spells: true },
+  garages:    { plan: ['garage', 'garage', 'garage', 'garage'], spells: true },
 };
 const runs = Number(process.argv[2] || 3);
 const only = process.argv[3] ? process.argv[3].split(',') : null;

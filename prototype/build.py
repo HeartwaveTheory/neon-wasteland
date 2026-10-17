@@ -13,10 +13,10 @@ rep = {
     '__FONT_CHAKRA__': uri(os.path.join(F, 'chakra700.woff2'), 'font/woff2'),
 }
 # Tower layers: towers2/out/layers/<tower>-<base|head>.png exported as 512x512 WebP (quality 90, with alpha).
-for t in ['sniper', 'plasma', 'railgun', 'garrison', 'dragon']:
+for t in ['sniper', 'plasma', 'railgun', 'garrison', 'garage', 'dragon']:
     for l in ['base', 'head']:
         rep[f'__{t.upper()}_{l.upper()}__'] = uri(os.path.join(A, f'{t}-{l}.webp'), 'image/webp')
-for u in ['raider', 'scout', 'enforcer', 'mech', 'drone', 'trooper', 'merc']:
+for u in ['raider', 'scout', 'enforcer', 'mech', 'drone', 'trooper', 'merc', 'garage_drill', 'garage_rivet', 'garage_wrench']:
     rep[f'__UNIT_{u.upper()}__'] = uri(os.path.join(A, 'units', f'{u}.webp'), 'image/webp')
 for k, v in rep.items():
     if k not in src: sys.exit(f'missing placeholder {k}')
