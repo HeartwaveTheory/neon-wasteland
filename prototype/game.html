@@ -1655,12 +1655,32 @@ function drawPadHints() {
     ctx.beginPath(); ctx.ellipse(p.x, p.y, PAD_RING.rx, PAD_RING.ry, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
+// The map image is 2x, for sharp zooming. Shrinking it to the screen every frame is slow, so while the screen shows it
+// smaller than the image (the usual zooms) it is drawn from a copy made at the screen's own pixel size, remade once the
+// zoom has settled. Zoomed in past the image's detail, it is drawn straight from the image.
+const MAPC = { bmp: null, k: 0, want: 0, since: 0, busy: false };
+function mapLayer() {
+  const k = CAM.s * DPR;
+  if (!IMG.map || k >= IMG.map.width / MAP_W) return null;
+  if (MAPC.bmp && Math.abs(MAPC.k - k) < 1e-3) return MAPC.bmp;
+  if (MAPC.want !== k) { MAPC.want = k; MAPC.since = performance.now(); return null; }   // still zooming
+  if (MAPC.busy || performance.now() - MAPC.since < 150) return null;
+  const c = document.createElement('canvas');
+  c.width = Math.round(MAP_W * k); c.height = Math.round(MAP_H * k);
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(IMG.map, 0, 0, c.width, c.height);
+  MAPC.busy = true;
+  // an ImageBitmap draws faster than a canvas; until it's ready the image is drawn directly
+  createImageBitmap(c).then((b) => { if (MAPC.bmp) MAPC.bmp.close(); MAPC.bmp = b; MAPC.k = k; MAPC.busy = false; }, () => { MAPC.busy = false; });
+  return null;
+}
 function render() {
   const sh = S.shake > 0 ? S.shake * 10 : 0;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#15100b'; ctx.fillRect(0, 0, VW, VH);
   ctx.setTransform(DPR * CAM.s, 0, 0, DPR * CAM.s, DPR * (-CAM.x * CAM.s + rand(-sh, sh)), DPR * (-CAM.y * CAM.s + rand(-sh, sh)));
-  if (IMG.map) ctx.drawImage(IMG.map, 0, 0, MAP_W, MAP_H);
+  // the map image is 2x: smoothed with the browser's better filter, so it doesn't shimmer when shown smaller than it is
+  const ml = mapLayer();
+  if (ml) ctx.drawImage(ml, 0, 0, MAP_W, MAP_H); else if (IMG.map) ctx.drawImage(IMG.map, 0, 0, MAP_W, MAP_H);
   drawLiving();
   drawAmbient();
   for (const d of S.decals) {

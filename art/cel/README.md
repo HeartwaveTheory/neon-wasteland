@@ -9,7 +9,7 @@ It runs as the last step of each asset's script:
 
 | Asset | Script | Strength |
 |---|---|---|
-| The map (`prototype/assets/map.webp`) | `maplab/map_v3_layout.py` (done at 2x, so the band edges are smooth) | full |
+| The map (`prototype/assets/map.webp`) | `maplab/map_v3_layout.py` (on the 4x-upscaled map brought to 2x, the size it ships at) | full |
 | The towers (`prototype/assets/<tower>-<base/head>.webp`) | `art/cel/towers.py`, from the unshaded originals in `raw/towers/` | lighter (they're already inked) |
 | The enemies and troops (`prototype/assets/units/`) | `art/enemies/turnaround.py` (`grade`) | full, no extra outline |
 

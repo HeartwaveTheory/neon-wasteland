@@ -524,11 +524,31 @@ img = lay
 # ---- 9. the game's cel-shaded look (art/cel/celshade.py): flat bands of light, ink on the edges, hatched shadows ----
 sys.path.insert(0, os.path.join(ROOT, 'art', 'cel'))
 from celshade import cel   # noqa: E402
-# done at 2x and brought back down, so the band edges come out smooth instead of stepping on whole pixels when zoomed
-big = cv2.resize(img, (W * 2, H * 2), interpolation=cv2.INTER_CUBIC).astype(np.float32)
-img = cv2.resize(np.clip(cel(big, px=2.0), 0, 255), (W, H), interpolation=cv2.INTER_AREA).astype(np.uint8)
+# The map ships at 2x (MAP_SCALE), so it stays sharp when the player zooms in: the 1x composite is upscaled 4x with
+# Real-ESRGAN's anime model (art/upscale/upscale.py; cached in maplab/out by the composite's checksum, as it takes
+# minutes), brought down to 2x, then cel-shaded at that size. Without the upscaler it falls back to a plain resize.
+MAP_SCALE = 2
 
-cv2.imwrite(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'), img, [cv2.IMWRITE_WEBP_QUALITY, 95])
+
+def upscale4(im):
+    import hashlib, subprocess
+    key = hashlib.md5(im.tobytes()).hexdigest()[:16]
+    os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
+    cache = os.path.join(HERE, 'out', f'up4-{key}.png')
+    if not os.path.exists(cache):
+        py = os.environ.get('UPSCALE_PY', os.path.join(ROOT, 'venv-upscale', 'bin', 'python'))
+        if not os.path.exists(py):
+            print('WARNING: no upscaler (venv-upscale): a plain resize; see art/upscale/upscale.py')
+            return cv2.resize(im, None, fx=4, fy=4, interpolation=cv2.INTER_LANCZOS4)
+        tmp = os.path.join(HERE, 'out', 'up4-in.png'); cv2.imwrite(tmp, im)
+        subprocess.run([py, '-I', os.path.join(ROOT, 'art', 'upscale', 'upscale.py'), tmp, cache], check=True)
+    return cv2.imread(cache)
+
+
+big = cv2.resize(upscale4(img), (W * MAP_SCALE, H * MAP_SCALE), interpolation=cv2.INTER_AREA).astype(np.float32)
+img = np.clip(cel(big, px=float(MAP_SCALE)), 0, 255).astype(np.uint8)
+
+cv2.imwrite(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'), img, [cv2.IMWRITE_WEBP_QUALITY, 82])
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
 cv2.imwrite(os.path.join(HERE, 'out', 'map-v3-layout.png'), img)   # a PNG copy for looking at
 print('ok', img.shape, 'wire ends', {k: tuple(round(v) for v in p) for k, p in WIRE_ENDS.items()})

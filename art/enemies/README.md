@@ -19,7 +19,7 @@ they look exactly like it. (`concept.png` is the earlier single-pose concept, ke
 4. **The look:** before rigging, each figure is graded into the map's look (`grade`): its light warmed (orange from
    the upper left, violet in the shadow), its colours calmed and its highlights softened, its lines a warm near-black,
    grime and road dust on its legs, a warm rim light, then the game's cel shading (`../cel/celshade.py`). The frames are
-   saved at 128 px, about as soft as the map.
+   saved at 256 px, sharp enough to match the 2x map when zoomed in.
 5. **Troops:** the Garrison's troopers and the Drop Squad's mercs wear the raider's rig re-skinned (`SKINS`): AEGIS blue
    with a cyan visor, and orange.
 

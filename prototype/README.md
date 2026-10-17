@@ -28,7 +28,9 @@ made on it by `../maplab/map_v3_layout.py` (it writes `assets/map.webp`):
 - **A half-size AEGIS HQ**, further down the plaza; the road (with its rope fences) runs on through the plaza to its
   gate, so enemies walk about 180 px further. Its power lines run from the same two pylons to the smaller HQ.
 
-The pads, HQ, gates and routes are measured from that map (the routes with `tools/trace_road.py`), and the living map's
+The map image is 2x (3344 × 1882) so it stays sharp when zoomed in: the script upscales its 1x composite 4x with
+Real-ESRGAN's anime model (`../art/upscale/upscale.py`), brings it down to 2x and cel-shades it there; the game draws it
+over the 1x map coordinates. The pads, HQ, gates and routes are measured from that map (the routes with `tools/trace_road.py`), and the living map's
 HQ lights, searchlight and power-line pulses move with the HQ (`hqAt` in `game.html`). The painting is half the
 resolution of the old 2x map art, so it looks softer on phones: a 2x repaint would fix that.
 

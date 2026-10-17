@@ -19,7 +19,9 @@ playable prototype (towers, enemies, spells, waves, balance).
 - `prototype/README.md` covers the build script (`build.py`), the screenshot and bot-playtest scripts (`test.mjs`,
   `sim.mjs`, `dragon-test.mjs`, `leash.mjs`, `living-test.mjs`, `walk.mjs`) and `tools/trace_road.py`.
 - The map is a painting (`art/map-v3-source.webp`); `maplab/map_v3_layout.py` makes the game's map from it
-  (`prototype/assets/map.webp`: 7 small pads, the half-size HQ and its longer road, ruins and debris). Pads, HQ, gates,
+  (`prototype/assets/map.webp`: 7 small pads, the half-size HQ and its longer road, ruins and debris). The image ships
+  at 2x for sharp zooming: the script upscales its 1x composite with Real-ESRGAN (`art/upscale/upscale.py`, a Python 3.11
+  env at `venv-upscale/`, set up as its docstring says; about 12 minutes, cached in `maplab/out`). Pads, HQ, gates,
   routes and the living map's lights, acid boxes and wires are measured on that map in 1x pixels. The Node scripts find
   Playwright through `$PLAYWRIGHT` (the path to its `index.mjs`).
 - The whole game has one cel-shaded look (`art/cel/`): the map, the tower layers and the unit sprites are all generated

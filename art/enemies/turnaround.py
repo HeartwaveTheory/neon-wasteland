@@ -491,7 +491,8 @@ if __name__ == '__main__' and 'legs' in sys.argv:
             print(e, v, 'legs', len(P['legs']), [(round(l['pivot'][0]), round(l['pivot'][1]), round(l['length']), round(l['phase'], 2)) for l in P['legs']])
 
 
-OUT_PX = 128   # the frames are drawn at 320 px and saved at this size: about as soft as the map (it is a 1x painting)
+OUT_PX = 192   # the frames are drawn at 320 px and saved at this size: sharp at the closest zoom (a 29 px raider
+#                is ~100 screen px there; 192 px frames give it 115), and small enough to draw fast
 
 
 if __name__ == '__main__' and len(sys.argv) == 1:
@@ -505,7 +506,7 @@ if __name__ == '__main__' and len(sys.argv) == 1:
             ys = np.nonzero(a.max(1) > 40)[0]; tallest = max(tallest, FEET[1] - ys.min())
         out = cv2.resize(st, None, fx=OUT_PX / FRAME, fy=OUT_PX / FRAME, interpolation=cv2.INTER_AREA)
         path = os.path.join(UNITS, name + '.webp')
-        cv2.imwrite(path, out, [cv2.IMWRITE_WEBP_QUALITY, 85])
+        cv2.imwrite(path, out, [cv2.IMWRITE_WEBP_QUALITY, 75])
         print(f'ok {name}: scale {s:.3f}, sh {tallest / 2:.0f} (game.html SHEETS.{name}.sh), {os.path.getsize(path) // 1024} KB')
         bg = np.full(st.shape[:2] + (3,), (52, 44, 40), np.float32); al = st[..., 3:4] / 255
         review.append(cv2.resize((bg * (1 - al) + st[..., :3] * al).astype(np.uint8), None, fx=0.18, fy=0.18, interpolation=cv2.INTER_AREA))
