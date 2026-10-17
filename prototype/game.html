@@ -155,13 +155,15 @@ const PADS = [{ x: 463, y: 182 }, { x: 1022, y: 240 }, { x: 500, y: 366 }, { x: 
 const PAD_RING = { rx: 44, ry: 23 };  // the painted cyan ring
 const PAD_TAP = { rx: 54, ry: 30 };   // a pad's tap area: a little bigger than its ring, for fingers
 const HQ = { x: 885, y: 730 };
-// Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate.
-const ROUTE_L = [[174, -30], [176, 40], [182, 80], [196, 118], [215, 141], [237, 142], [257, 152], [277, 164], [292, 181], [306, 201], [321, 217], [337, 233], [357, 245], [379, 248], [399, 262], [421, 269], [443, 274], [465, 275], [487, 275], [509, 275], [531, 275], [553, 272], [575, 270], [597, 265], [619, 260], [641, 257], [663, 257], [685, 258], [707, 264], [729, 267], [751, 275], [773, 285], [793, 295], [813, 306], [831, 323], [847, 339], [863, 355], [875, 375], [875, 397], [875, 419], [875, 441], [875, 463], [875, 485], [875, 507], [875, 529], [875, 551], [875, 573], [875, 595], [875, 617], [875, 639], [875, 661], [879, 683], [885, 705], [885, 730]];
+// Routes traced along the middle of the painted road (tools/trace_road.py), gate -> junction -> AEGIS gate. The left
+// one starts at its gate's opening (the road beyond it fades into the distance); the right one comes in off the top edge.
+const ROUTE_L = [[177, 40], [178, 62], [183, 84], [200, 105], [221, 124], [239, 141], [259, 153], [279, 167], [294, 185], [307, 203], [323, 219], [339, 235], [357, 250], [379, 258], [401, 267], [423, 270], [445, 276], [467, 277], [489, 277], [511, 277], [533, 276], [555, 272], [577, 270], [599, 264], [621, 259], [643, 257], [665, 257], [687, 259], [709, 264], [731, 269], [753, 277], [775, 287], [795, 296], [815, 309], [831, 325], [847, 341], [863, 357], [874, 377], [875, 399], [875, 421], [875, 443], [875, 465], [875, 487], [875, 509], [875, 531], [875, 553], [875, 575], [875, 597], [875, 619], [875, 641], [875, 663], [879, 685], [885, 707], [885, 730]];
 const ROUTE_R = [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1285, 123], [1272, 141], [1259, 159], [1247, 179], [1240, 201], [1233, 223], [1217, 241], [1199, 258], [1181, 271], [1159, 279], [1137, 285], [1115, 287], [1093, 288], [1071, 297], [1053, 313], [1037, 329], [1019, 346], [999, 359], [977, 363], [955, 364], [935, 373], [917, 389], [901, 405], [887, 423], [882, 445], [876, 467], [875, 489], [875, 511], [875, 533], [875, 555], [875, 577], [875, 599], [875, 621], [875, 643], [875, 665], [880, 687], [885, 709], [885, 730]];
 // Road half-width at each route point: enemies spread sideways only where the road is wide enough.
-const HALFW_L = [0.0, 0.0, 13.6, 8.8, 7.8, 24.8, 22.6, 16.4, 18.6, 21.8, 33.4, 26.0, 19.0, 15.4, 19.8, 21.0, 21.8, 20.8, 23.2, 24.0, 23.0, 19.8, 19.8, 23.8, 24.6, 24.4, 26.0, 29.0, 27.8, 27.0, 26.0, 26.2, 25.6, 25.4, 32.2, 36.2, 32.2, 36.6, 37.8, 34.6, 34.8, 41.0, 39.8, 37.4, 43.1, 43.4, 38.6, 38.6, 42.0, 37.8, 39.4, 38.6, 18.0, 0.0];
+const HALFW_L = [0.0, 8.0, 13.0, 24.0, 28.0, 28.0, 22.6, 15.6, 19.8, 23.0, 34.4, 25.8, 24.2, 26.2, 21.6, 21.0, 22.8, 20.0, 20.2, 26.4, 23.4, 17.6, 19.8, 22.8, 24.8, 23.8, 27.0, 28.0, 27.0, 24.8, 25.2, 26.2, 24.2, 24.8, 32.8, 36.0, 33.0, 36.6, 36.8, 36.4, 36.6, 39.6, 38.4, 37.2, 44.5, 43.9, 37.2, 38.4, 41.4, 36.4, 39.2, 37.2, 16.0, 0.0];
 const HALFW_R = [0.0, 0.0, 0.0, 0.0, 0.0, 9.2, 9.4, 15.0, 21.4, 27.0, 25.2, 23.2, 20.6, 23.8, 27.0, 25.0, 31.8, 39.3, 31.2, 27.4, 24.0, 29.6, 27.4, 21.4, 26.0, 34.0, 26.2, 29.2, 41.2, 41.4, 40.6, 39.0, 38.2, 45.1, 43.0, 37.8, 39.4, 42.3, 37.0, 40.2, 36.0, 14.0, 0.0];
 const GATES = { L: { x: 178, y: 50 }, R: { x: 1318, y: 84 } };   // the two gate openings (danger glow, call-early buttons)
+const FADE_IN = 26;   // map px over which a new enemy fades in (the left road starts in view, at its gate)
 
 function makePath(pts, halfw) {
   const cum = [0];
@@ -1009,14 +1011,21 @@ function drawEnemy(e) {
   const d = e.def, sc = d.h / d.sh;
   if (d.air) {
     const hy = HOVER + Math.sin(S.t * 4 + e.seed) * 3;
+    ctx.globalAlpha = clamp(e.d / FADE_IN, 0, 1);
     drawSprite('drone', Math.floor(S.t * 18 + e.seed) % 6, e.x, e.y - hy + 66 * sc, e.face, sc, e.hit > 0);   // body centre (80, 84) of the frame sits at the hover height
+    ctx.globalAlpha = 1;
     return;
   }
+  // the left road starts at its gate, where the painted road fades into the distance: enemies come out of the haze
+  // there, fading in over their first steps
+  const fade = clamp(e.d / FADE_IN, 0, 1);
+  if (fade < 1) ctx.globalAlpha = fade;
   shadow(e.x, e.y, d.shadow, d.shadow * 0.4);
   const blocked = e.blockedNow;
   const sh = SHEETS[e.type];
   if (blocked) drawSprite(e.type, sh.walk + (e.swing > 0.5 ? 1 : 0), e.x, e.y, e.face, sc, e.hit > 0, VIEW.side);   // side on to its blocker
   else { const v = viewOf(e.vx, e.vy); drawSprite(e.type, walkFrame(e, sh), e.x, e.y, v.face, sc, e.hit > 0, v.row); }
+  ctx.globalAlpha = 1;
   if (e.burnT > 0) drawBurning(e);
   if (d.boss && Math.random() < 0.35) S.parts.push({ x: e.x - e.face * 14, y: e.y - d.h * 0.95, vx: rand(-6, 6), vy: -rand(20, 40), life: 1.2, max: 1.2, color: 'rgba(60,56,60,.55)', size: rand(4, 7), g: -8, soft: true });
 }

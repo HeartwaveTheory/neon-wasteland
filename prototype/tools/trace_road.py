@@ -11,10 +11,11 @@ Prints the new waypoints and writes an overlay image for checking.
 import sys, json, heapq
 import numpy as np, cv2
 
-# Where each road comes in: hand-checked against the painting from the top edge through the gate (the gates' posts
-# and beacons break the colour mask there), then searched from its last point to the AEGIS gate.
+# Where each road comes in, hand-checked against the painting (the gates' posts and beacons break the colour mask
+# there), then searched from its last point to the AEGIS gate. The left road ends at its gate, fading into the distance,
+# so its route starts in the gate's opening (the game fades enemies in there); the right one runs off the top edge.
 ENTRY = {
-    'L': [[174, -30], [176, 40], [182, 80], [196, 118], [214, 140]],
+    'L': [[177, 40], [178, 62], [183, 84], [200, 105], [221, 124], [238, 141]],
     'R': [[1420, -30], [1404, 16], [1370, 45], [1336, 70], [1302, 98], [1284, 122]],
 }
 END = [885, 730]   # where the road meets the AEGIS gate (half-size HQ, further down the plaza)
