@@ -8,5 +8,4 @@ units/out/
 venv
 .vault/
 venv-upscale
-art/garage/out/
 __pycache__/

@@ -6,9 +6,8 @@
 2. Sized as a tower layer: 512 px, the disc's centre at (256, 420) (the pad's centre: game.html draws tower layers at
    0.23x, SPR), the disc a little wider than a pad's ring. The head layer is empty: the garage doesn't turn.
    -> art/cel/raw/towers/garage-base.webp, garage-head.webp (art/cel/towers.py cel-shades them into prototype/assets)
-3. The mechanics: three of the four cut out, from the painting upscaled 4x (Real-ESRGAN, cached in art/garage/out),
-   graded and cel-shaded like the troops (art/enemies/turnaround.py's grade), animated (a waddle, a swing).
-   -> prototype/assets/units/garage_drill.webp, garage_rivet.webp, garage_wrench.webp; art/garage/review.jpg
+   The mechanics themselves are drawn like the game's other troops: the raider's rig from the turnaround sheet in
+   their colours, with their tools (art/enemies/turnaround.py, SKINS garage_*).
 
     venv/bin/python -I art/garage/garage.py      (then art/cel/towers.py for the building's cel shading)
 """
@@ -28,13 +27,6 @@ MECHS = {
     'gunner': [(672, 830), (720, 812), (740, 772), (782, 772), (800, 822), (800, 880), (760, 905), (716, 896)],
     'wrench': [(772, 880), (802, 836), (822, 820), (856, 822), (884, 880), (880, 948), (800, 952), (776, 920)],
 }
-# the outline's darkness (LAB lightness): the two with drills stand off the disc, on the dark background (L ~40), so
-# only near-black counts there; on the lit floor the outline is lighter
-MECH_INK = {'drill': 26, 'bigdrill': 26, 'gunner': 48, 'wrench': 48}
-MECH_KEEP = {'gunner': [(728, 806)]}                                         # points (reference px) in regions to keep
-MECH_HOLES = {'gunner': [[(768, 772), (808, 772), (808, 808), (768, 792)],    # polygons (reference px) to cut away
-                         [(762, 789), (808, 805), (808, 822), (772, 808)]],
-              'wrench': [[(770, 926), (842, 922), (890, 922), (890, 960), (770, 960)]]}
 DISC = ((1015, 795), (512, 205))   # the disc's ellipse (centre, half-axes), roughly; building() fits it to the visible rim
 FLOOR = (600, 800, 680, 840)       # a patch of plain floor plate (reference px): its texture fills where the mechanics stood
 SCALE = 0.395                      # reference px -> layer px: the disc's half-width 512 -> 202 (46 map px; a pad's ring is 44)
@@ -119,116 +111,3 @@ if __name__ == '__main__':
     ys, xs = np.nonzero(base[..., 3] > 40)
     print('ok garage: layer bbox', xs.min(), ys.min(), xs.max(), ys.max())
 
-
-def mechanic(name):
-    """One mechanic cut out (the reference crop round it as BGR, alpha): inside its polygon, what the ink lines close
-    off from the polygon's edge, plus that ink."""
-    poly = np.array(MECHS[name], np.int32)
-    x, y, w, h = cv2.boundingRect(poly); x -= 4; y -= 4; w += 8; h += 8
-    crop = src[y:y + h, x:x + w]
-    lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB).astype(np.float32)
-    ink = (lab[..., 0] < MECH_INK[name]).astype(np.uint8)
-    inside = np.zeros((h, w), np.uint8); cv2.fillPoly(inside, [poly - [x, y]], 1)
-    walls = cv2.dilate(ink, np.ones((2, 2), np.uint8))
-    free = ((1 - walls) | (1 - inside)).astype(np.uint8)          # outside the polygon is all open floor
-    free[inside == 0] = 1
-    n, lbl = cv2.connectedComponents(free, connectivity=4)
-    outside = set(np.unique(lbl[inside == 0])) - {0}
-    fig = (~np.isin(lbl, list(outside)) & (inside > 0)).astype(np.uint8)
-    for px, py in MECH_KEEP.get(name, []):                         # regions the outline leaves open (a visor)
-        k = lbl[py - y, px - x]
-        if k: fig[lbl == k] = 1
-    for hp in MECH_HOLES.get(name, []):
-        cv2.fillPoly(fig, [np.array(hp, np.int32) - [x, y]], 0)
-    fig = cv2.morphologyEx(fig, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
-    n, lbl, st, _ = cv2.connectedComponentsWithStats(fig, connectivity=8)
-    big = 1 + np.argmax(st[1:, 4])
-    fig = np.isin(lbl, [k for k in range(1, n) if st[k, 4] > 0.02 * st[big, 4]]).astype(np.uint8)
-    return (x, y), crop.copy(), cv2.GaussianBlur(fig.astype(np.float32), (0, 0), 0.5)
-
-
-# ---------------------------------------------------------------- the mechanics' sprite sheets
-# Three of the four mechanics are the tower's units (the grey drill, the riveter and the wrench). Each has one view, as
-# painted, turned to face right (the game flips it to face left). They don't have separate legs to swing, so they walk
-# with a heavy waddle: rocking from foot to foot about the feet, a bob, a little squash as each foot lands. Then two
-# attack frames, the same wind-up and lunge as the troopers. One row: WALK_N walk frames then 2 attack frames, drawn at
-# 320 px and saved at 192, the feet at (160, 300) (game.html SHEETS).
-UNITS = {'drill': 'garage_drill', 'gunner': 'garage_rivet', 'wrench': 'garage_wrench'}
-FACES = {'drill': -1, 'gunner': -1, 'wrench': -1}   # which way each faces in the painting (-1: left)
-UP = 1.6        # reference px -> sheet px: the tallest fills most of its frame (about 8 sheet px a map px, as the troopers)
-HIRES = (430, 760, 910, 1000)   # the mechanics' corner of the painting (reference px), upscaled 4x for crisp sheets
-
-
-def hires():
-    """The mechanics' corner of the painting upscaled 4x (Real-ESRGAN, like the map: art/upscale/upscale.py), cached in
-    art/garage/out."""
-    import hashlib, subprocess
-    x0, y0, x1, y1 = HIRES
-    im = src[y0:y1, x0:x1]
-    os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
-    cache = os.path.join(HERE, 'out', f'up4-{hashlib.md5(im.tobytes()).hexdigest()[:16]}.png')
-    if not os.path.exists(cache):
-        py = os.environ.get('UPSCALE_PY', os.path.join(ROOT, 'venv-upscale', 'bin', 'python'))
-        if not os.path.exists(py):
-            print('WARNING: no upscaler (venv-upscale): a plain resize; see art/upscale/upscale.py')
-            return cv2.resize(im, None, fx=4, fy=4, interpolation=cv2.INTER_LANCZOS4)
-        tmp = os.path.join(HERE, 'out', 'up4-in.png'); cv2.imwrite(tmp, im)
-        subprocess.run([py, '-I', os.path.join(ROOT, 'art', 'upscale', 'upscale.py'), tmp, cache], check=True)
-    return cv2.imread(cache)
-WALK_N = 6
-WADDLE = dict(rock=4.0, bob=5.0, squash=0.04)
-LIFT = 0.72     # a gamma on the graded figure (below 1: lighter mid-tones, the ink stays dark)
-
-
-def mech_pieces(name):
-    import zlib
-    sys.path.insert(0, os.path.join(ROOT, 'art', 'enemies'))
-    import turnaround as T
-    (x, y), c, a = mechanic(name)
-    h, w = a.shape
-    # the colours from the upscaled painting; round the edge, the figure's own colours carried out over the floor's,
-    # so its soft edge doesn't pick up the floor's red glow
-    big = hires()[(y - HIRES[1]) * 4:(y - HIRES[1] + h) * 4, (x - HIRES[0]) * 4:(x - HIRES[0] + w) * 4]
-    c = cv2.resize(big, (round(w * UP), round(h * UP)), interpolation=cv2.INTER_AREA)
-    a = np.clip(cv2.resize(a, (c.shape[1], c.shape[0]), interpolation=cv2.INTER_LINEAR), 0, 1)
-    a = cv2.erode(a, np.ones((2, 2), np.uint8))
-    out = (a < 0.6).astype(np.uint8)
-    c = np.where(out[..., None] > 0, cv2.inpaint(c, cv2.dilate(out, np.ones((3, 3), np.uint8)) & (a < 0.98).astype(np.uint8), 3, cv2.INPAINT_TELEA), c).astype(np.float32)
-    if FACES[name] < 0: c, a = c[:, ::-1].copy(), a[:, ::-1].copy()
-    c = T.grade(c, a, seed=zlib.crc32(name.encode()) % 1000)
-    c = 255 * (c / 255) ** LIFT   # the painting's mechanics are dark red on near-black: lifted, so they read on the road
-    ys, xs = np.nonzero(a > 0.5)
-    g = ys.max(); fx = xs[ys > g - 10].mean()
-    return T, dict(body=np.dstack([c * a[..., None], a]).astype(np.float32), anchor=(fx, g))
-
-
-def mech_strip(name, scale):
-    T, P = mech_pieces(name)
-    fr = []
-    for i in range(WALK_N):
-        p = 2 * np.pi * i / WALK_N
-        land = abs(np.cos(p))                                   # a foot comes down
-        M = T.affine(WADDLE['rock'] * np.sin(p), P['anchor'], dy=-WADDLE['bob'] * abs(np.sin(p)), sy=1 - WADDLE['squash'] * land)
-        fr.append(T.render(P, [(P['body'], M)], scale))
-    for rot, dx in T.ATTACK:
-        fr.append(T.render(P, [(P['body'], T.affine(-rot, P['anchor'], dx=dx / scale))], scale))
-    return T, cv2.hconcat(fr)
-
-
-if __name__ == '__main__':
-    review = []
-    for name, unit in UNITS.items():
-        s = 1.0
-        while True:   # the largest scale (at most 1) at which no frame is cut off at its edges
-            T, st = mech_strip(name, s)
-            a = st[..., 3]; F = T.FRAME
-            if all(max(a[:, i * F:i * F + 3].max(), a[:, (i + 1) * F - 3:(i + 1) * F].max(), a[:3, i * F:(i + 1) * F].max()) <= 10 for i in range(a.shape[1] // F)): break
-            s *= 0.95
-        ys = np.nonzero(st[:, :T.FRAME, 3].max(1) > 40)[0]
-        out = cv2.resize(st, None, fx=T.OUT_PX / T.FRAME, fy=T.OUT_PX / T.FRAME, interpolation=cv2.INTER_AREA)
-        path = os.path.join(ROOT, 'prototype', 'assets', 'units', unit + '.webp')
-        cv2.imwrite(path, out, [cv2.IMWRITE_WEBP_QUALITY, 75])
-        print(f'ok {unit}: scale {s:.3f}, sh {(T.FEET[1] - ys.min()) / 2:.0f} (game.html SHEETS.{unit}.sh), {os.path.getsize(path) // 1024} KB')
-        bg = np.full(st.shape[:2] + (3,), (52, 44, 40), np.float32); al = st[..., 3:4] / 255
-        review.append((bg * (1 - al) + st[..., :3] * al).astype(np.uint8))
-    cv2.imwrite(os.path.join(HERE, 'review.jpg'), cv2.resize(cv2.vconcat(review), None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA), [cv2.IMWRITE_JPEG_QUALITY, 85])

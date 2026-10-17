@@ -20,8 +20,9 @@ map, and in portrait you drag to look around). It is a Kingdom Rush-style tower 
   blocked), and the mech boss in wave 10. The raider, scout, enforcer and mech come from the enemy turnaround sheet
   (`../art/enemies/`): they turn to face where they walk (front, three-quarter, side or back) and their legs step in
   time with the ground. The Garrison's troopers and the Squad's mercs wear the raider's rig in AEGIS blue and orange
-  (the troopers with two laser pistols instead of its blades). The Garage's mechanics are cut from its painting
-  (`../art/garage/garage.py`, upscaled 4x first) and walk with a heavy waddle.
+  (the troopers with two laser pistols instead of its blades). The Garage's three mechanics wear it too, in the
+  gunmetal and red of the mechanics in the garage painting (a grey or red helmet, a red or steel visor), each with his
+  tool: a drill, a rivet gun, a wrench.
 - **2 spells**: Airstrike (3 missiles) and Drop Squad (2 mercs who block for 18 s).
 - **Waves**: 10 waves from two gates. Tapping the skull calls a wave early for bonus scrap. Selling refunds 60%.
 - **Stars**: 18+ lives left is 3 stars, 6+ is 2 stars.

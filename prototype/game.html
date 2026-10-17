@@ -770,7 +770,7 @@ function updatePatches(dt) {
 // inside the tower's range; outside it they let go.
 const GUARD = 60;
 const TROOP_SHEETS = { trooper: ['trooper', 'trooper', 'trooper'], mechanic: ['garage_drill', 'garage_rivet', 'garage_wrench'] };
-const TROOP_H = { trooper: [26, 26, 26], mechanic: [31, 27, 27], merc: [26] };   // drawn height on the map (px)
+const TROOP_H = { trooper: [26, 26, 26], mechanic: [27, 27, 27], merc: [26] };   // drawn height on the map (px)
 function inZone(tr, e, post) {
   if (edist(post.x, post.y, e.x, e.y) > GUARD) return false;
   if (tr.kind === 'merc') return true;
@@ -1043,15 +1043,15 @@ function hitTint(e) { return e.hit > 0 ? '#ffffff' : null; }
 // Units are sprite sheets, drawn facing right with their feet at (80, 150) of a 160-unit frame (flipped to face left).
 // The scout, raider, enforcer and mech, and the troops, come from the turnaround sheet (../art/enemies/turnaround.py):
 // one row per view (front, three-quarter, side, back), `walk` walk frames then 2 attack frames; the drone is one row of
-// 6 + 2, and so are the Garage's mechanics (../art/garage/garage.py: one view, a waddle and a swing). stride: map px
-// walked per walk cycle, so the feet keep pace with the ground. sh: the sprite's height in its 160-unit frame (the
-// troops'; the enemies' is ENEMIES[].sh).
+// 6 + 2. The troops (the Garrison's troopers, the Squad's mercs, the Garage's three mechanics) are the raider's rig in
+// their own colours, each with his own weapon or tool. stride: map px walked per walk cycle, so the feet keep pace with
+// the ground. sh: the sprite's height in its 160-unit frame (the troops'; the enemies' is ENEMIES[].sh).
 const SHEETS = {
   scout: { rows: 4, walk: 8, stride: 28 }, raider: { rows: 4, walk: 8, stride: 26 }, enforcer: { rows: 4, walk: 8, stride: 30 },
   mech: { rows: 4, walk: 8, stride: 40 }, trooper: { rows: 4, walk: 8, stride: 24, sh: 102 }, merc: { rows: 4, walk: 8, stride: 24, sh: 96 },
   drone: { rows: 1, walk: 6 },
-  garage_drill: { rows: 1, walk: 6, stride: 20, sh: 112 }, garage_rivet: { rows: 1, walk: 6, stride: 20, sh: 86 },
-  garage_wrench: { rows: 1, walk: 6, stride: 20, sh: 78 },
+  garage_drill: { rows: 4, walk: 8, stride: 24, sh: 102 }, garage_rivet: { rows: 4, walk: 8, stride: 24, sh: 102 },
+  garage_wrench: { rows: 4, walk: 8, stride: 24, sh: 102 },
 };
 const VIEW = { front: 0, quarter: 1, side: 2, back: 3 };
 function drawSprite(sheet, frame, x, y, face, scale, flash, row = 0) {
@@ -1122,21 +1122,18 @@ function drawField(tw) {
 }
 function drawTroop(tr) {
   if (tr.dead) return;
-  const merc = tr.kind === 'merc', mech = tr.kind === 'mechanic';
+  const merc = tr.kind === 'merc', melee = tr.kind !== 'trooper';
   let yoff = 0;
   if (merc && tr.drop > 0) { yoff = -tr.drop * 300; tr.drop = Math.max(0, tr.drop - 1 / 60); }
-  shadow(tr.x, tr.y, mech ? 8 : 6, mech ? 3 : 2.5);
+  shadow(tr.x, tr.y, 6, 2.5);
   ctx.save();
   if (merc && tr.life < 3) ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 10));
   const fighting = tr.target && Math.hypot(tr.x - tr.target.x, tr.y - tr.target.y) < 40;
   const sheet = merc ? 'merc' : TROOP_SHEETS[tr.kind][tr.k], sh = SHEETS[sheet], sc = (merc ? TROOP_H.merc[0] : TROOP_H[tr.kind][tr.k]) / sh.sh;
   const x = tr.x, y = tr.y + yoff, flash = tr.hit > 0, hit = sh.walk + (tr.swing > 0 && tr.swing <= 0.5 ? 1 : 0);
-  if (mech) {   // one view: walking, or hammering at its enemy
-    if (tr.swing > 0 || fighting) drawSprite(sheet, hit, x, y, tr.face, sc, flash);
-    else drawSprite(sheet, tr.moving ? walkFrame(tr, sh) : 0, x, y, tr.face, sc, flash);
-  } else if (tr.moving) { const v = viewOf(tr.vx, tr.vy); drawSprite(sheet, walkFrame(tr, sh), x, y, v.face, sc, flash, v.row); }
-  else if (merc && (tr.swing > 0 || fighting)) drawSprite(sheet, hit, x, y, tr.face, sc, flash, VIEW.side);
-  else if (!merc && (tr.shot > 0 || fighting)) drawSprite(sheet, 0, x - Math.max(0, tr.shot - 0.2) * 12 * tr.face, y, tr.face, sc, flash, VIEW.side);   // aiming, side on, kicked back by each shot
+  if (tr.moving) { const v = viewOf(tr.vx, tr.vy); drawSprite(sheet, walkFrame(tr, sh), x, y, v.face, sc, flash, v.row); }
+  else if (melee && (tr.swing > 0 || fighting)) drawSprite(sheet, hit, x, y, tr.face, sc, flash, VIEW.side);   // blades, tools
+  else if (!melee && (tr.shot > 0 || fighting)) drawSprite(sheet, 0, x - Math.max(0, tr.shot - 0.2) * 12 * tr.face, y, tr.face, sc, flash, VIEW.side);   // aiming, side on, kicked back by each shot
   else drawSprite(sheet, 0, x, y, 1, sc, flash, VIEW.front);   // standing guard, facing out
   tr.hit = Math.max(0, (tr.hit || 0) - 1 / 60);
   ctx.restore();
@@ -1836,7 +1833,7 @@ function render() {
     const top = e.def.air ? HOVER + 18 : e.def.h + 8;
     hpBar(e.x, e.y - top, e.hp, e.maxHp, e.def.boss ? 56 : 20, e.def.boss ? '#ff3a4a' : '#7dff5a');
   }
-  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - (tr.kind === 'mechanic' ? 37 : 33), tr.hp, tr.maxHp, 16, '#3ff0ff');
+  for (const tr of S.troops) if (!tr.dead) hpBar(tr.x, tr.y - 33, tr.hp, tr.maxHp, 16, '#3ff0ff');
   drawFx();
   // HQ damage flash
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

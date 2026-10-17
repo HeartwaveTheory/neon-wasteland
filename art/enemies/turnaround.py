@@ -232,6 +232,11 @@ WALK_N, FRAME, FEET = 8, 320, (160, 300)
 SKINS = {
     'trooper': dict(base='raider', hue=(88, 112), jacket=(110, 60), cyan=96, arms='blasters'),   # the Garrison: AEGIS blue, a cyan visor, laser pistols
     'merc':    dict(base='raider', hue=(8, 22), jacket=(18, 70), cyan=14),       # the Drop Squad: orange
+    # the Garage's mechanics, each in the colours of his figure in the garage painting (art/garage/reference.png), with
+    # his tool: palette parts -> (hue, saturation, brightness x) (OpenCV hues, 0-180; red is 0)
+    'garage_drill':  dict(base='raider', arms='drill', palette=dict(helmet=(10, 22, 0.9), visor=(4, 225, 1.0), trim=(0, 200, 1.0), suit=(10, 30, 1.0))),
+    'garage_rivet':  dict(base='raider', arms='rivet', palette=dict(helmet=(0, 195, 0.95), visor=(104, 28, 0.98), trim=(0, 200, 1.0), suit=(10, 30, 1.0))),
+    'garage_wrench': dict(base='raider', arms='wrench', palette=dict(helmet=(10, 16, 0.62), visor=(0, 230, 1.0), trim=(0, 200, 1.0), suit=(0, 120, 0.95))),
 }
 
 
@@ -283,8 +288,8 @@ def pistol(angle):
     return np.dstack([c.astype(np.float32), a.astype(np.float32) / 255])
 
 
-def blasters(c, a, view, x0, y0):
-    """The raider's blades swapped for laser pistols (in a crop at (x0, y0) of the sheet)."""
+def unblade(c, a, view, x0, y0):
+    """The raider's blades cut away (in a crop at (x0, y0) of the sheet); returns the crop, its alpha and the alpha before."""
     c, a = c.copy(), a.copy()
     h, w = a.shape
     hsv = cv2.cvtColor(np.clip(c, 0, 255).astype(np.uint8), cv2.COLOR_BGR2HSV)
@@ -303,9 +308,16 @@ def blasters(c, a, view, x0, y0):
     edge = solid - cv2.erode(solid, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
     edge &= cv2.dilate(zone, np.ones((9, 9), np.uint8))
     c[edge > 0] = (12, 12, 16)
-    # the pistols, then each hand back over its grip
-    for (hx, hy), ang in PISTOLS[view]:
-        g = pistol(ang); n = g.shape[0]; px, py = hx - x0 - n // 2, hy - y0 - n // 2
+    return c, a, a0, skinpx
+
+
+def hold(c, a, a0, skinpx, x0, y0, grips, draw):
+    """Paste a tool (draw(angle) -> BGRA float, its grip at the centre) into each hand of grips [((x, y), angle)], then
+    the hand (skinpx: the skin, found before any recolour) back over its grip."""
+    c, a = c.copy(), a.copy()
+    h, w = a.shape
+    for (hx, hy), ang in grips:
+        g = draw(ang); n = g.shape[0]; px, py = hx - x0 - n // 2, hy - y0 - n // 2
         ya, yb, xa, xb = max(0, py), min(h, py + n), max(0, px), min(w, px + n)
         gg = g[ya - py:yb - py, xa - px:xb - px]; ga = gg[..., 3:4]
         c[ya:yb, xa:xb] = c[ya:yb, xa:xb] * (1 - ga) + gg[..., :3] * ga
@@ -317,9 +329,117 @@ def blasters(c, a, view, x0, y0):
     return c, a
 
 
+def blasters(c, a, view, x0, y0):
+    """The raider's blades swapped for laser pistols."""
+    c, a, a0, skinpx = unblade(c, a, view, x0, y0)
+    return hold(c, a, a0, skinpx, x0, y0, PISTOLS[view], pistol)
+
+
+# The mechanics' tools, in the same style as the pistols (and the sheet: flat colours, a light band, thick black
+# outline), each held in one hand: in the side and three-quarter views the front hand, from the front and the back the
+# right-hand one. Drawn after the recolour, so they keep their own colours: grey metal, as in the painting, with red
+# bands and grips.
+RED, RED_HI, STEEL, STEEL_HI, GUN, GUN_HI, DARK, BLACK = ((40, 44, 196), (92, 98, 240), (196, 192, 188), (238, 236, 232),
+                                                          (112, 106, 104), (160, 154, 150), (58, 54, 54), (10, 10, 14))
+TOOL_GRIPS = {   # (hand, angle) per view, for a tool held out level (drill, rivet gun) or raised (wrench)
+    'level':  dict(front=[((431, 488), -55)], quarter=[((871, 486), -12)], side=[((1277, 488), -8)], back=[((1817, 483), -55)]),
+    'raised': dict(front=[((431, 488), -70)], quarter=[((871, 486), -45)], side=[((1277, 488), -42)], back=[((1817, 483), -70)]),
+}
+
+
+TOOL_SCALE = 1.2
+
+
+def tool(shapes, angle, n=220):
+    """Draw shapes [(polygon in tool coordinates: grip at 0,0, pointing +x), BGR fill, or None for a line set] on an n px
+    canvas, outlined, and turn it to angle like pistol()."""
+    o = n // 2
+    P = lambda pts: np.array([(o + x * TOOL_SCALE, o + y * TOOL_SCALE) for x, y in pts], np.int32)
+    c = np.zeros((n, n, 3), np.uint8); a = np.zeros((n, n), np.uint8)
+    for poly, col in shapes:
+        if col is None: continue
+        cv2.fillPoly(a, [P(poly)], 255); cv2.polylines(a, [P(poly)], True, 255, 9)
+    c[a > 0] = BLACK   # the thick outline round the silhouette; thin lines between the parts
+    for poly, col in shapes:
+        if col is not None: cv2.fillPoly(c, [P(poly)], col)
+    for poly, col in shapes:
+        if col is None:   # detail lines
+            for l in poly: cv2.line(c, tuple(int(v) for v in P([l[0]])[0]), tuple(int(v) for v in P([l[1]])[0]), (60, 58, 58), 2)
+        else: cv2.polylines(c, [P(poly)], True, BLACK, 2)
+    if np.cos(np.radians(angle)) < 0: c, a = c[::-1].copy(), a[::-1].copy()
+    M = cv2.getRotationMatrix2D((o, o), -angle, 1.0)
+    c = cv2.warpAffine(c, M, (n, n), flags=cv2.INTER_LINEAR); a = cv2.warpAffine(a, M, (n, n), flags=cv2.INTER_LINEAR)
+    return np.dstack([c.astype(np.float32), a.astype(np.float32) / 255])
+
+
+def drill(angle):
+    bit = [(36, -27), (76, -17), (36, -7)]
+    spiral = [((44 + 10 * k, -25 + 2.2 * k), (49 + 10 * k, -9 - 2.2 * k)) for k in range(3)]
+    return tool([
+        ([(-10, -8), (6, -8), (3, 11), (-13, 9)], DARK),                       # the grip
+        ([(-24, -33), (26, -33), (30, -29), (30, -5), (-24, -5)], GUN),        # the motor housing
+        ([(-22, -32), (26, -32), (28, -28), (-22, -28)], GUN_HI),              # its light band
+        ([(4, -33), (14, -33), (14, -5), (4, -5)], RED),                       # a red band
+        ([(-18, -24), (-6, -24), (-6, -12), (-18, -12)], DARK),                # the vents
+        ([(30, -26), (38, -26), (38, -8), (30, -8)], STEEL),                   # the chuck
+        (bit, STEEL),                                                          # the bit
+        ([(38, -25), (70, -18), (38, -20)], STEEL_HI),
+        (spiral, None),
+        ([((-15, -21), (-9, -21)), ((-15, -16), (-9, -16))], None),          # the vents' slots
+    ], angle)
+
+
+def rivet(angle):
+    return tool([
+        ([(-10, -10), (5, -10), (2, 10), (-13, 8)], DARK),                     # the grip
+        ([(-14, -28), (36, -28), (40, -23), (40, -8), (-14, -8)], GUN),        # the body
+        ([(-12, -27), (35, -27), (38, -24), (-12, -24)], GUN_HI),
+        ([(-14, -18), (40, -18), (40, -13), (-14, -13)], RED),                 # a red stripe
+        ([(2, -40), (24, -40), (24, -28), (2, -28)], STEEL),                   # the rivet magazine
+        ([(40, -22), (52, -20), (52, -12), (40, -10)], STEEL),                 # the nose
+        ([(52, -19), (58, -19), (58, -13), (52, -13)], STEEL_HI),              # a rivet
+        ([((7, -40), (7, -28)), ((13, -40), (13, -28)), ((19, -40), (19, -28))], None),
+        ([(5, -10), (15, -10), (13, -2), (5, -2)], DARK),                      # the trigger guard
+    ], angle)
+
+
+def wrench(angle):
+    head = [(54, -16), (66, -20), (78, -14), (80, -8), (70, -8), (66, -4), (70, 0), (80, 0), (78, 6), (66, 12), (54, 8), (50, -4)]
+    return tool([
+        ([(-12, -6), (52, -6), (52, 4), (-12, 4)], STEEL),                     # the handle
+        ([(-10, -5), (50, -5), (50, -2), (-10, -2)], STEEL_HI),
+        (head, STEEL),                                                         # the open jaw
+        ([(-16, -8), (10, -8), (10, 6), (-16, 6)], RED),                       # the rubber grip
+    ], angle)
+
+
+TOOLS = {'drill': (drill, 'level'), 'rivet': (rivet, 'level'), 'wrench': (wrench, 'raised')}
+
+
+def mechskin(c, pal):
+    """Recolour the raider's rig by part (helmet, visor and its lights, trim and boots, suit), keeping each pixel's
+    shading; the ink and the skin stay."""
+    hsv = cv2.cvtColor(np.clip(c, 0, 255).astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
+    h, sat, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    skin_px = (h <= 22) & (sat < 170) & (v > 120)
+    ink = v < 55
+    free = ~skin_px & ~ink
+    shine = (sat < 70) & (v > 215)   # the visor's glints: plain white
+    sat = np.where(shine, 0, sat); free &= ~shine
+    visor = free & (sat > 170) & (v > 140)
+    trim = free & (sat > 150) & ~visor
+    helmet = free & (v > 110) & ~visor & ~trim
+    suit = free & ~visor & ~trim & ~helmet
+    for part, m in (('helmet', helmet), ('visor', visor), ('trim', trim), ('suit', suit)):
+        th, ts, tv = pal[part]
+        h = np.where(m, th, h); sat = np.where(m, ts, sat); v = np.where(m, np.clip(v * tv, 0, 255), v)
+    return cv2.cvtColor(np.dstack([h, sat, v]).astype(np.uint8), cv2.COLOR_HSV2BGR).astype(np.float32)
+
+
 def reskin(c, skin):
     """Recolour a BGR float crop for a troop skin."""
     k = SKINS[skin]
+    if 'palette' in k: return mechskin(c, k['palette'])
     hsv = cv2.cvtColor(np.clip(c, 0, 255).astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
     h, sat, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
     skin_px = (h <= 22) & (sat < 170) & (v > 120)
@@ -416,8 +536,13 @@ def pieces(enemy, view, skin=None):
     x0, y0, x1, y1, ground = box(enemy, view)
     a = cut(enemy, view)[y0:y1, x0:x1]
     c = src[y0:y1, x0:x1].astype(np.float32)
-    if skin and SKINS[skin].get('arms') == 'blasters': c, a = blasters(c, a, view, x0, y0)
+    arms = skin and SKINS[skin].get('arms')
+    if arms == 'blasters': c, a = blasters(c, a, view, x0, y0)
+    if arms in TOOLS: c, a, a0, skinpx = unblade(c, a, view, x0, y0)
     if skin: c = reskin(c, skin)
+    if arms in TOOLS:   # a mechanic's tool, after the recolour (it keeps its own colours)
+        draw, grip = TOOLS[arms]
+        c, a = hold(c, a, a0, skinpx, x0, y0, TOOL_GRIPS[grip][view], draw)
     if FIG[enemy].get('faces', {}).get(view, 1) < 0:
         a, c = a[:, ::-1].copy(), c[:, ::-1].copy()
     c = grade(c, a, seed=zlib.crc32(f"{enemy}{view}".encode()) % 1000)   # after the flip: the light comes from the upper left in every view
