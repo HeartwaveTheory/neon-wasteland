@@ -242,6 +242,113 @@ for (a, b), _ in CABLES:
     cv2.polylines(lay, [pts - [0, 4]], False, (66, 60, 64), 1, cv2.LINE_AA, shift=4)
 img = lay
 
+# ---- 8. ruins and debris: props cut from the painting (the old compound's outbuildings, its truck, tyres, barrels,
+# crates), wrecked (darker, sooty, a caved-in roof, a tilt), on the plaza and around the pad clearings ----
+def cutout(x0, y0, x1, y1, poly, label=None):
+    """A prop from the painting: the crop (x0, y0)-(x1, y1), its outline traced by hand (poly, crop px), and the stencilled
+    label it carries painted out (label: a box in crop px), so a copy doesn't read as the HQ's own building."""
+    crop = src[y0:y1, x0:x1].copy()
+    if label:
+        lm = np.zeros(crop.shape[:2], np.uint8); cv2.rectangle(lm, label[:2], label[2:], 1, -1)
+        crop = cv2.inpaint(crop, lm, 3, cv2.INPAINT_TELEA)
+    a = np.zeros(crop.shape[:2], np.float32); cv2.fillPoly(a, [np.array(poly, np.int32)], 1, cv2.LINE_AA)
+    return crop, cv2.GaussianBlur(a, (0, 0), 0.5)
+
+
+def wreck(prop, dark=0.72, soot=0.35, hole=None, angle=0, seed=0, hue=None):
+    """Wreck a prop: recoloured (hue, OpenCV 0-180), darker, sooty from the top down, a caved-in hole (polygon in prop
+    px) with broken rafters across it, soot burnt round it and rust running down from it, and a tilt."""
+    c, a = prop; h, w = a.shape
+    r = np.random.default_rng(seed)
+    if hue is not None:
+        hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV).astype(np.float32)
+        hsv[..., 0] = hue; hsv[..., 1] = np.clip(hsv[..., 1] * 1.1 + 40, 0, 200)
+        c = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+    c = c.astype(np.float32) * dark
+    c = c * np.linspace(1 - soot, 1, h)[:, None, None] * np.array([0.95, 0.98, 1.06])
+    if hole:
+        pts = np.array(hole, np.int32)
+        bx, by, bw, bh = cv2.boundingRect(pts)
+        burn = np.zeros((h, w), np.float32)                              # soot burnt round the hole
+        cv2.ellipse(burn, (bx + bw // 2, by + bh // 2), (bw // 2 + 8, bh // 2 + 7), 0, 0, 360, 1, -1)
+        c = c * (1 - 0.55 * cv2.GaussianBlur(burn, (0, 0), 4))[..., None]
+        for _ in range(5):                                               # rust running down below it
+            x = int(r.uniform(bx, bx + bw)); y = by + bh
+            cv2.line(c, (x, y), (x + int(r.uniform(-1, 2)), min(h - 2, y + int(r.uniform(8, 22)))), (40, 70, 128), 1, cv2.LINE_AA)
+        cv2.fillPoly(c, [pts], (24, 18, 20))                             # the dark inside
+        for k in range(3):                                               # broken rafters across it
+            x = bx + int(bw * (k + 1) / 4)
+            cv2.line(c, (x, by - 1), (x + int(r.uniform(-6, 6)), by + int(bh * r.uniform(0.5, 1.1))), (70, 78, 90), 2, cv2.LINE_AA)
+            cv2.line(c, (x, by - 1), (x + int(r.uniform(-6, 6)), by + int(bh * r.uniform(0.5, 1.1))), (16, 12, 14), 1, cv2.LINE_AA)
+        cv2.polylines(c, [pts], True, (40, 74, 132), 2, cv2.LINE_AA)    # torn, rusty edge
+        cv2.polylines(c, [pts], True, (14, 10, 12), 1, cv2.LINE_AA)
+    c = c.clip(0, 255).astype(np.uint8)
+    if angle:
+        M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1)
+        c = cv2.warpAffine(c, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+        a = cv2.warpAffine(a, M, (w, h), flags=cv2.INTER_LINEAR)
+    return c, a
+
+
+def place(im, prop, cx, cy, scale=1.0, flip=False, shadow=0.35):
+    """Stand a prop with its bottom centre at (cx, cy), with a soft contact shadow to the lower right."""
+    c, a = prop
+    if flip: c, a = c[:, ::-1], a[:, ::-1]
+    if scale != 1:
+        c = cv2.resize(c, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        a = cv2.resize(a, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    h, w = a.shape
+    x0, y0 = int(cx - w / 2), int(cy - h)
+    sh = np.zeros((H, W), np.float32)
+    cv2.ellipse(sh, (int(cx + w * .08), int(cy - 1)), (int(w * .55), max(3, int(h * .14))), 0, 0, 360, 1, -1)
+    sh = cv2.GaussianBlur(sh, (0, 0), 3)[..., None]
+    im = (im.astype(np.float32) * (1 - shadow * sh)).astype(np.uint8)
+    region = im[y0:y0 + h, x0:x0 + w]
+    im[y0:y0 + h, x0:x0 + w] = comp(region, c, a[..., None])
+    return im
+
+
+def rubble(im, cx, cy, n, spread, seed):
+    r = np.random.default_rng(seed)
+    m = np.zeros((H, W), np.uint8)
+    for _ in range(n):
+        cv2.ellipse(m, (int(cx + r.normal(0, spread)), int(cy + r.normal(0, spread * .35))), (2, 1), 0, 0, 360, 1, -1)
+    return stones(im, cv2.dilate(m, np.ones((9, 9), np.uint8)), 0.02, seed)
+
+
+MESS = cutout(722, 818, 808, 882, [(1, 4), (80, 4), (78, 58), (1, 58)], label=(22, 30, 50, 44))
+BUNKS = cutout(640, 782, 722, 882, [(4, 22), (60, 18), (68, 24), (68, 56), (76, 60), (76, 88), (4, 88), (2, 58)], label=(22, 64, 58, 80))
+SHED = cutout(986, 782, 1102, 862, [(8, 8), (108, 6), (110, 30), (104, 58), (14, 58), (10, 30)], label=(13, 36, 34, 49))
+TRUCK = cutout(986, 838, 1084, 898, [(8, 8), (62, 4), (88, 4), (93, 14), (94, 46), (88, 55), (8, 55), (4, 42)])
+TYRES = cutout(154, 740, 214, 782, [(26, 16), (56, 16), (57, 40), (26, 40)])
+BARRELS = cutout(970, 840, 996, 878, [(8, 2), (20, 2), (21, 33), (8, 33)])
+CRATES = cutout(772, 780, 806, 820, [(1, 2), (14, 2), (15, 36), (1, 36)])
+
+ruins = [
+    # the plaza: a burnt-out container, a caved-in shed, a dead truck, and junk
+    (wreck(MESS, dark=0.8, soot=0.45, hue=12, hole=[(6, 5), (30, 3), (52, 8), (58, 20), (40, 30), (24, 26), (10, 18)], angle=-4, seed=1), 676, 868, 1.0, False),
+    (wreck(SHED, dark=0.62, soot=0.4, hole=[(40, 8), (70, 6), (100, 12), (96, 30), (74, 38), (52, 30)], angle=5, seed=2), 1092, 612, 0.82, True),
+    (wreck(TRUCK, dark=0.55, soot=0.55, angle=-9), 1102, 870, 0.92, True),
+    (wreck(TYRES, dark=0.8, soot=0.15), 640, 640, 0.8, False),
+    (wreck(CRATES, dark=0.7, soot=0.3, angle=-14), 662, 646, 0.8, True),
+    (wreck(BARRELS, dark=0.75, soot=0.15, angle=80), 616, 652, 0.85, False),
+    (wreck(TYRES, dark=0.85, soot=0.1), 724, 768, 0.8, False),
+    (wreck(BARRELS, dark=0.8, soot=0.1, angle=88), 790, 708, 0.9, False),   # knocked over
+    (wreck(CRATES, dark=0.8, soot=0.2), 1062, 704, 0.9, True),
+    # around the pad clearings, at their edges, clear of the pads
+    (wreck(TYRES, dark=0.85, soot=0.1), 392, 214, 0.65, True),
+    (wreck(BARRELS, dark=0.8, soot=0.1, angle=-84), 534, 160, 0.8, False),
+    (wreck(CRATES, dark=0.75, soot=0.25, angle=-6), 448, 404, 0.75, False),
+    (wreck(BARRELS, dark=0.8, soot=0.1), 950, 262, 0.8, False),
+    (wreck(TYRES, dark=0.85, soot=0.1), 1094, 222, 0.6, False),
+    (wreck(CRATES, dark=0.75, soot=0.25, angle=5), 1124, 402, 0.75, True),
+    (wreck(BARRELS, dark=0.8, soot=0.1, angle=92), 1276, 356, 0.8, False),
+]
+for prop, x, y, sc, fl in ruins:
+    img = place(img, prop, x, y, sc, fl)
+for k, (x, y, n) in enumerate([(676, 872, 60), (1092, 616, 45), (640, 650, 30), (1102, 874, 24)]):
+    img = rubble(img, x, y, n, 16, 40 + k)
+
 cv2.imwrite(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'), img, [cv2.IMWRITE_WEBP_QUALITY, 95])
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
 cv2.imwrite(os.path.join(HERE, 'out', 'map-v3-layout.png'), img)   # a PNG copy for looking at

@@ -1597,6 +1597,171 @@ function drawLiving() {
   LIVING.ms = LIVING.ms * 0.95 + (performance.now() - t0) * 0.05;
 }
 
+// ---------------------------------------------------------------- critters (the wasteland's wildlife)
+// Rats, crows and a stray dog live on the dirt around the pads and on the HQ plaza. Rats scurry in bursts and stop to
+// sniff, crows hop and peck, the dog wanders and sits. They keep off the road and the pads, and get out of the way of
+// trouble: rats bolt, the dog trots off, crows take to the air and land somewhere else. Drawn small in the game's ink
+// style, depth-sorted with the units; they run on real time (not the game's speed), and calmer with reduced motion.
+const CRIT_ZONES = [   // ellipses they roam: the four pad clearings and the plaza either side of the road
+  { x: 463, y: 186, rx: 92, ry: 44 }, { x: 552, y: 366, rx: 96, ry: 44 }, { x: 1022, y: 242, rx: 92, ry: 44 },
+  { x: 1200, y: 380, rx: 92, ry: 44 }, { x: 696, y: 712, rx: 88, ry: 110 }, { x: 1072, y: 712, rx: 84, ry: 110 },
+];
+const CRIT_KINDS = {
+  rat: { n: 7, walk: 26, run: 95, scare: 70 },
+  crow: { n: 5, walk: 12, run: 0, scare: 85, fly: 95 },
+  dog: { n: 1, walk: 18, run: 60, scare: 95 },
+};
+const CRIT = { list: [], next: 0 };
+const inCritZone = (z, x, y) => ((x - z.x) / z.rx) ** 2 + ((y - z.y) / z.ry) ** 2 <= 1;
+const offRoad = (x, y) => !PADS.some((p) => ((x - p.x) / 52) ** 2 + ((y - p.y) / 28) ** 2 < 1) && nearestOnPaths(x, y).dist > 34;
+function critSpot(z, tries = 40) {   // a free spot in a zone: off the road and the pads
+  for (let k = 0; k < tries; k++) {
+    const a = rand(0, Math.PI * 2), q = Math.sqrt(Math.random()) * 0.92, x = z.x + Math.cos(a) * z.rx * q, y = z.y + Math.sin(a) * z.ry * q;
+    if (offRoad(x, y)) return { x, y };
+  }
+  return { x: z.x, y: z.y };
+}
+function initCritters() {
+  CRIT.list = [];
+  const plaza = [4, 5];
+  for (const [kind, def] of Object.entries(CRIT_KINDS)) {
+    for (let k = 0; k < def.n; k++) {
+      const zi = kind === 'dog' ? plaza[k % 2] : (k * 7 + kind.length) % CRIT_ZONES.length, p = critSpot(CRIT_ZONES[zi]);
+      CRIT.list.push({ kind, zi, x: p.x, y: p.y, tx: p.x, ty: p.y, face: Math.random() < 0.5 ? -1 : 1, state: 'idle',
+        wait: rand(0, 3), ph: rand(0, 6.3), z: 0, fear: 0, sit: 0 });
+    }
+  }
+}
+// The nearest trouble to (x, y) within r: an enemy, a fire patch or an explosion (returns its position or null).
+function critThreat(x, y, r) {
+  let best = null, bd = Infinity;
+  const check = (tx, ty, reach) => { const d = Math.hypot(tx - x, (ty - y) / SQ); if (d < reach && d < bd) { bd = d; best = { x: tx, y: ty }; } };
+  for (const e of S.enemies) if (!e.dead) check(e.x, e.y, r);
+  for (const p of S.patches) check(p.x, p.y, r);
+  for (const tr of S.troops) if (!tr.dead && tr.target) check(tr.x, tr.y, r);   // a scuffle
+  for (const f of S.fx) if (f.kind === 'boom' || f.kind === 'splash') check(f.x, f.y, r * 1.8);   // blasts carry further
+  return best;
+}
+function updateCritters(dt) {
+  const rm = reducedMotion(), k = rm ? 0.5 : 1;
+  for (const c of CRIT.list) {
+    const def = CRIT_KINDS[c.kind], z = CRIT_ZONES[c.zi];
+    c.ph += dt * 10 * k;
+    if (c.state === 'fly') {   // crows: up, across to another zone, down
+      const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy), v = def.fly * k * dt;
+      if (d > v) { c.x += (dx / d) * v; c.y += (dy / d) * v; c.face = dx < 0 ? -1 : 1; }
+      const total = c.flyLen || 1, done = 1 - Math.min(1, d / total);
+      c.z = Math.sin(Math.PI * Math.min(1, done)) * 42 + (d < 12 ? 0 : 6);
+      if (d <= v) { c.x = c.tx; c.y = c.ty; c.z = 0; c.state = 'idle'; c.wait = rand(1, 3); }
+      continue;
+    }
+    const th = critThreat(c.x, c.y, def.scare);
+    if (th) {
+      if (c.kind === 'crow') {   // take off for a spot in another zone, away from the trouble
+        let zi = c.zi; for (let n = 0; n < 6 && zi === c.zi; n++) zi = (Math.random() * CRIT_ZONES.length) | 0;
+        const p = critSpot(CRIT_ZONES[zi]); c.zi = zi; c.tx = p.x; c.ty = p.y; c.state = 'fly';
+        c.flyLen = Math.hypot(p.x - c.x, p.y - c.y); continue;
+      }
+      // run straight away from it, sliding along the edge of the zone
+      let ax = c.x - th.x, ay = c.y - th.y; const L = Math.hypot(ax, ay) || 1; ax /= L; ay /= L;
+      const v = def.run * k * dt, nx = c.x + ax * v, ny = c.y + ay * v * SQ;
+      if (inCritZone(z, nx, ny) && offRoad(nx, ny)) { c.x = nx; c.y = ny; }
+      else if (inCritZone(z, nx, c.y) && offRoad(nx, c.y)) c.x = nx;
+      else if (inCritZone(z, c.x, ny) && offRoad(c.x, ny)) c.y = ny;
+      c.face = ax < 0 ? -1 : 1; c.state = 'run'; c.sit = 0; c.wait = rand(0.6, 1.5); c.tx = c.x; c.ty = c.y;
+      continue;
+    }
+    if (c.state === 'run') c.state = 'idle';
+    // go to a target, wait there, pick another
+    const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+    if (d > 1) {
+      const speed = c.kind === 'rat' ? (c.dash > 0 ? def.run * 0.8 : def.walk) : def.walk;
+      const v = Math.min(d, speed * k * dt);
+      c.x += (dx / d) * v; c.y += (dy / d) * v; c.face = dx < 0 ? -1 : 1; c.state = 'walk';
+      c.dash = (c.dash || 0) - dt;
+    } else {
+      c.state = 'idle'; c.wait -= dt;
+      if (c.kind === 'dog') c.sit = Math.min(1, c.sit + dt * 1.5);
+      if (c.wait <= 0) {
+        const p = critSpot(z, 20);
+        const far = c.kind === 'rat' ? 45 : c.kind === 'dog' ? 70 : 25;   // short hops: rats dart, crows potter about
+        const a = Math.atan2(p.y - c.y, p.x - c.x), r = Math.min(far, Math.hypot(p.x - c.x, p.y - c.y));
+        const tx = c.x + Math.cos(a) * r, ty = c.y + Math.sin(a) * r;
+        if (inCritZone(z, tx, ty) && offRoad(tx, ty)) { c.tx = tx; c.ty = ty; }
+        c.wait = c.kind === 'rat' ? rand(0.4, 2.2) : c.kind === 'dog' ? rand(3, 8) : rand(0.8, 2.5);
+        c.dash = c.kind === 'rat' && Math.random() < 0.6 ? 0.5 : 0; c.sit = 0;
+      }
+    }
+  }
+}
+function critShadow(x, y, rx) { ctx.fillStyle = 'rgba(18,13,9,.32)'; ctx.beginPath(); ctx.ellipse(x + 1, y + 0.5, rx, rx * 0.38, 0, 0, Math.PI * 2); ctx.fill(); }
+function drawCritter(c) {
+  const moving = c.state === 'walk' || c.state === 'run', step = Math.sin(c.ph * (c.state === 'run' ? 2.2 : 1.4));
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (c.kind === 'rat') {
+    critShadow(c.x, c.y, 5);
+    ctx.translate(c.x, c.y - 2.4); ctx.scale(c.face, 1);
+    const sniff = c.state === 'idle' ? Math.sin(c.ph * 2.6) * 0.5 : 0, hop = moving ? Math.abs(step) * 0.8 : 0;
+    ctx.translate(0, -hop);
+    ctx.strokeStyle = '#c98a7a'; ctx.lineWidth = 0.9;   // tail
+    ctx.beginPath(); ctx.moveTo(-4, 0.6); ctx.quadraticCurveTo(-8, 1 + Math.sin(c.ph) * 1.5, -11, -0.5 + Math.sin(c.ph * 0.7) * 1.5); ctx.stroke();
+    if (moving) { ctx.strokeStyle = INK; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-2 + step, 1.8); ctx.lineTo(-2 + step * 1.6, 2.6); ctx.moveTo(2 - step, 1.8); ctx.lineTo(2 - step * 1.6, 2.6); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(0, 0, 4.6, 2.4, 0, 0, Math.PI * 2); ctx.fillStyle = '#6d5f5a'; ctx.fill(); ctx.lineWidth = 0.8; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(4.2, -0.6 + sniff, 2.2, 1.6, 0.25, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // head
+    ctx.fillStyle = '#e88a9a'; ctx.beginPath(); ctx.arc(3.4, -2.1 + sniff, 0.8, 0, Math.PI * 2); ctx.fill();    // ear
+    ctx.fillStyle = '#ff4a4a'; ctx.fillRect(4.6, -1.2 + sniff, 0.7, 0.7);                                       // red eye (it's a wasteland rat)
+  } else if (c.kind === 'crow') {
+    const fly = c.state === 'fly', y = c.y - c.z;
+    critShadow(c.x, c.y, fly ? 3.5 : 4);
+    ctx.translate(c.x, y - 3); ctx.scale(c.face, 1);
+    const peck = !fly && c.state === 'idle' ? Math.max(0, Math.sin(c.ph * 0.9)) ** 6 * 2.6 : 0, hop = !fly && moving ? Math.abs(step) * 1.4 : 0;
+    ctx.translate(0, -hop);
+    ctx.strokeStyle = INK; ctx.lineWidth = 0.8;
+    if (!fly) { ctx.beginPath(); ctx.moveTo(-0.5, 2.2); ctx.lineTo(-0.8, 3.4); ctx.moveTo(1, 2.2); ctx.lineTo(1.2, 3.4); ctx.stroke(); }
+    ctx.fillStyle = '#211c24';
+    ctx.beginPath(); ctx.moveTo(-5.5, -0.5); ctx.lineTo(-2.5, 0.4); ctx.lineTo(-5.4, 1.4); ctx.closePath(); ctx.fill(); ctx.stroke();   // tail
+    ctx.beginPath(); ctx.ellipse(0, 0, 3.8, 2.3, -0.15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(3.2, -1.8 + peck, 1.7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // head
+    ctx.fillStyle = '#e8b23a'; ctx.beginPath(); ctx.moveTo(4.6, -2.1 + peck); ctx.lineTo(6.6, -1.4 + peck * 1.3); ctx.lineTo(4.6, -1.0 + peck); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5be0ff'; ctx.fillRect(3.4, -2.5 + peck, 0.7, 0.7);   // a cyan glint in its eye
+    if (fly) {   // wings, flapping
+      const f = Math.sin(c.ph * 2.4);
+      ctx.fillStyle = '#2c2630';
+      for (const sgn of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-1, -0.5); ctx.quadraticCurveTo(-2, -6 * f * sgn - 1, -7, -7 * f * sgn); ctx.lineTo(1.5, -0.8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    } else { ctx.fillStyle = '#3a3240'; ctx.beginPath(); ctx.ellipse(-0.6, -0.2, 2.6, 1.3, -0.2, 0, Math.PI * 2); ctx.fill(); }
+  } else if (c.kind === 'dog') {
+    critShadow(c.x, c.y, 8);
+    ctx.translate(c.x, c.y - 4.5); ctx.scale(c.face, 1);
+    const sit = c.sit, trot = c.state === 'run';
+    ctx.strokeStyle = INK; ctx.lineWidth = 1;
+    // legs (folded under when it sits)
+    const legs = [[-4.5, 1], [-2.5, -1], [3.5, 1], [5, -1]];
+    ctx.lineWidth = 1.6;
+    for (const [lx, sg] of legs) {
+      const sw = moving ? step * sg * (trot ? 2.2 : 1.4) : 0, back = lx < 0, len = back && sit > 0 ? 4.4 * (1 - sit * 0.7) : 4.4;
+      ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(lx, 1.5); ctx.lineTo(lx + sw, 1.5 + len); ctx.stroke();
+      ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(lx, 1.5); ctx.lineTo(lx + sw, 1.2 + len); ctx.stroke(); ctx.lineWidth = 1.6;
+    }
+    ctx.lineWidth = 1;
+    ctx.save(); ctx.rotate(-0.22 * sit); ctx.translate(sit * 1.5, sit * 1.8);
+    ctx.strokeStyle = '#8a5a3a'; ctx.lineWidth = 1.4;   // tail, wagging
+    ctx.beginPath(); ctx.moveTo(-6.5, -0.5); ctx.quadraticCurveTo(-9, -3 + Math.sin(c.ph * 1.6) * 1.5, -10, -5 + Math.sin(c.ph * 1.6) * 2.5); ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = INK;
+    ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.4, 0, 0, Math.PI * 2); ctx.fillStyle = '#8a5a3a'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#5a3a26'; ctx.beginPath(); ctx.ellipse(-2, -1, 2.6, 1.6, 0.3, 0, Math.PI * 2); ctx.fill();   // a dark patch
+    ctx.fillStyle = '#9aa3b5'; ctx.fillRect(-5.5, -1.2, 2.2, 2.6); ctx.strokeRect(-5.5, -1.2, 2.2, 2.6);           // a scrap-metal patch on its hip
+    ctx.restore();
+    const hy = -3.6 - sit * 1.6 + (c.state === 'idle' && !sit ? Math.sin(c.ph * 0.5) * 0.4 : 0);
+    ctx.fillStyle = '#8a5a3a';
+    ctx.beginPath(); ctx.ellipse(7, hy, 3, 2.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();            // head
+    ctx.beginPath(); ctx.ellipse(9.6, hy + 0.9, 1.9, 1.2, 0.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // snout
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(11.2, hy + 0.6, 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5a3a26'; ctx.beginPath(); ctx.moveTo(5.5, hy - 1.6); ctx.lineTo(6.2, hy - 4.6); ctx.lineTo(7.6, hy - 2); ctx.closePath(); ctx.fill(); ctx.stroke();   // ear
+    ctx.fillStyle = INK; ctx.fillRect(8, hy - 0.9, 0.9, 0.9);
+  }
+  ctx.restore();
+}
+
 // ---------------------------------------------------------------- drawing: world
 function drawAmbient() {
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -1660,11 +1825,13 @@ function render() {
     list.push({ y: e.y, f: () => drawEnemy(e) });
   }
   for (const tr of S.troops) if (!tr.dead) list.push({ y: tr.y, f: () => drawTroop(tr) });
+  for (const c of CRIT.list) if (c.state !== 'fly') list.push({ y: c.y, f: () => drawCritter(c) });
   for (const p of S.patches) for (const t of p.tongues) list.push({ y: p.y + t.dy, f: () => drawPatchTongue(p, t) });
   for (const f of S.fx) if (f.kind === 'patchOut') for (const t of f.p.tongues) list.push({ y: f.p.y + t.dy, f: () => drawPatchTongue(f.p, t, f.life / f.max) });
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.f();
   for (const e of S.enemies) if (e.def.air) drawEnemy(e);
+  for (const c of CRIT.list) if (c.state === 'fly') drawCritter(c);
   // health bars
   for (const e of S.enemies) {
     const top = e.def.air ? HOVER + 18 : e.def.h + 8;
@@ -1975,6 +2142,7 @@ function frame(now) {
     if (n === 8) acc = 0;
   }
   updateLiving(dt);
+  updateCritters(dt);
   const r0 = performance.now();
   render();
   frame.ms = (frame.ms || 0) * 0.95 + (performance.now() - r0) * 0.05;   // render time, for the living-map test
@@ -1994,7 +2162,7 @@ async function boot() {
   cv.addEventListener('pointercancel', onUp);
   cv.addEventListener('wheel', onWheel, { passive: false });
   await Promise.all([loadImages(), document.fonts.load('400 16px Bungee'), document.fonts.load('700 12px "Chakra Petch"')].map((p) => p.catch?.(() => null) ?? p));
-  makeThumbs(); initLiving();
+  makeThumbs(); initLiving(); initCritters();
   syncHud(); readHud();
   requestAnimationFrame(frame);
 }
@@ -2007,6 +2175,7 @@ window.__NW = {
   build, upgrade, sell, setRally, startWave, castAir, castSquad, restart, tap, toWorld, toScreen, CAM,
   NAPALM, menuButtons, makePatch, leadPoint, dragonTarget, spawnEnemy, showInfo, mouthAt, headPose, resize,
   start() { $('startScreen').hidden = true; S.paused = false; },
+  critters() { return CRIT.list.map((c) => ({ kind: c.kind, x: c.x, y: c.y, z: c.z, state: c.state, zi: c.zi })); },
   living() { return { ready: LIVING.ready, acid: LIVING.acid.length, parts: LIVING.parts.length, pulses: LIVING.pulses.length, ms: LIVING.ms, renderMs: frame.ms, cap: LIVE.particles }; },
 };
 </script>
