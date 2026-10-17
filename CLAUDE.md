@@ -20,8 +20,11 @@ playable prototype (towers, enemies, spells, waves, balance).
   `sim.mjs`, `dragon-test.mjs`, `leash.mjs`, `living-test.mjs`, `walk.mjs`) and `tools/trace_road.py`.
 - The map is a painting (`art/map-v3-source.webp`); `maplab/map_v3_layout.py` makes the game's map from it
   (`prototype/assets/map.webp`: 7 small pads, the half-size HQ and its longer road, ruins and debris). Pads, HQ, gates,
-  routes and the living map's lights, acid boxes and wires are measured on that map in 1x pixels. The Node scripts find Playwright
-  through `$PLAYWRIGHT` (the path to its `index.mjs`).
+  routes and the living map's lights, acid boxes and wires are measured on that map in 1x pixels. The Node scripts find
+  Playwright through `$PLAYWRIGHT` (the path to its `index.mjs`).
+- The whole game has one cel-shaded look (`art/cel/`): the map, the tower layers and the unit sprites are all generated
+  through `art/cel/celshade.py`. The tower `.webp` files in `prototype/assets/` are made by `art/cel/towers.py` from
+  `art/cel/raw/towers/`, and the units by `art/enemies/turnaround.py`: don't edit those outputs by hand.
 - The game's numbers are connected to the Game Tuner (`tuner.json`, `prototype/tuning.schema.json`). Change a tuned
   number in `game.html` and the schema's `default` together; `node prototype/tuning-check.mjs` checks they match.
 

@@ -12,7 +12,10 @@ and mech, each drawn from the front, three-quarter, side and back, standing on a
     venv/bin/python -I art/enemies/turnaround.py   -> prototype/assets/units/<enemy>-<view>.webp,
                                                       art/enemies/cutouts/<enemy>-<view>.png, art/enemies/review.png
 """
-import os, sys
+import os, sys, zlib
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'cel'))
+from celshade import cel   # noqa: E402
 import numpy as np, cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -251,6 +254,80 @@ def reskin(c, skin):
     return out
 
 
+# ---------------------------------------------------------------- the grade: fit the characters to the map
+# The map (prototype/assets/map.webp) is a soft, grainy painting in a warm dusk light: greys tinted warm, shadows leaning
+# violet, highlights orange, its ink a warm near-black. The sheet is clean and flat with pure black lines and cool greys.
+# grade() moves a figure's crop into the map's look, before it is rigged (so the texture moves with the body):
+# its light (a warm key from the upper left, violet in the shadow), its colour (calmer chroma, softer highlights), its
+# lines, the map's own painted grain over it, grime, and road dust on its feet. GRADE=0 turns it off.
+GRADE = 1.0
+MAP = cv2.imread(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'))
+_MAPDET = None
+
+
+def map_grain(h, w, seed):
+    """The map's fine painted detail (it minus its blur), from its sand, tiled over (h, w) in soft patches."""
+    global _MAPDET
+    if _MAPDET is None:
+        m = MAP.astype(np.float32); _MAPDET = m - cv2.GaussianBlur(m, (0, 0), 2.5)
+    r = np.random.default_rng(seed); p = 48
+    out = np.zeros((h, w, 3), np.float32); ws = np.zeros((h, w, 1), np.float32)
+    win = cv2.getGaussianKernel(p, p / 3.5); win = (win @ win.T)[..., None].astype(np.float32)
+    for y in range(-p // 2, h, p // 3):
+        for x in range(-p // 2, w, p // 3):
+            sx, sy = int(r.integers(560, 1200 - p)), int(r.integers(600, 900 - p))   # the plaza and road sand
+            pt = _MAPDET[sy:sy + p, sx:sx + p]
+            a0, b0, a1, b1 = max(0, y), max(0, x), min(h, y + p), min(w, x + p)
+            out[a0:a1, b0:b1] += pt[a0 - y:a1 - y, b0 - x:b1 - x] * win[a0 - y:a1 - y, b0 - x:b1 - x]
+            ws[a0:a1, b0:b1] += win[a0 - y:a1 - y, b0 - x:b1 - x]
+    return out / np.maximum(ws, 1e-3) * 1.7
+
+
+def grade(c, a, seed=0):
+    """Grade a BGR float crop (alpha a) into the map's look."""
+    if not GRADE: return c
+    h, w = a.shape
+    lab = cv2.cvtColor(np.clip(c, 0, 255).astype(np.uint8), cv2.COLOR_BGR2LAB).astype(np.float32)
+    L, A, B = lab[..., 0], lab[..., 1] - 128, lab[..., 2] - 128
+    chroma = np.hypot(A, B)
+    neon = np.clip((chroma - 35) / 20, 0, 1) * np.clip((L - 90) / 40, 0, 1)   # glowing blades, visors, eyes: keep them bright
+    ink = np.clip((50 - L) / 20, 0, 1)
+    # the figure's own coordinates: 0 at its top/left to 1 at its bottom/right
+    ys, xs = np.nonzero(a > 0.3)
+    ty = np.clip((np.arange(h)[:, None] - ys.min()) / max(1, np.ptp(ys)), 0, 1)
+    tx = np.clip((np.arange(w)[None, :] - xs.min()) / max(1, np.ptp(xs)), 0, 1)
+    light = 1 - 0.65 * ty - 0.35 * tx                                        # the key light from the upper left
+    # colour: calmer chroma, warm greys, softer highlights
+    k = 1 - 0.22 * (1 - neon)
+    A, B = A * k, B * k
+    hi = np.clip((L - 95) / 110, 0, 1); lo = 1 - np.clip((L - 25) / 85, 0, 1)
+    shade = np.clip(0.6 - light, 0, 1) / 0.6                                 # the side turned away from the light
+    A = A + (4 + 4 * hi + 6 * lo + 5 * shade) * (1 - neon)                   # warm overall, violet in the shadow
+    B = B + (2 + 12 * hi - 8 * lo - 9 * shade) * (1 - neon)                  # orange in the light, blue-violet in the shadow
+    L = L * (1 - 0.1 * (1 - neon)) + 4                                       # highlights down a notch, blacks up a touch
+    L = L + (light - 0.45) * 22 * (1 - neon)                                 # shaded from the upper left
+    # the lines: a warm near-black
+    L = L * (1 - ink) + 12 * ink; A = A * (1 - ink) + 3 * ink; B = B * (1 - ink) + 5 * ink
+    out = cv2.cvtColor(np.clip(np.dstack([L, A + 128, B + 128]), 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR).astype(np.float32)
+    # grime: soft dark patches, more low down; road dust on the feet and legs
+    r = np.random.default_rng(seed + 7)
+    n = cv2.resize(r.standard_normal((h // 10 + 2, w // 10 + 2)).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
+    grime = np.clip(n * 0.5 + 0.2, 0, 1) * (0.35 + 0.65 * ty) * (1 - neon) * (1 - ink)
+    out *= (1 - 0.18 * grime)[..., None]
+    dust = np.clip((ty - 0.72) / 0.28, 0, 1) ** 1.5 * (1 - neon) * (1 - ink * 0.6)
+    out = out * (1 - 0.35 * dust[..., None]) + np.float32([118, 150, 182]) * 0.35 * dust[..., None]   # the road's sand (BGR)
+    # the painting's grain, and a warm rim of key light on the upper-left edges
+    out += map_grain(h, w, seed) * (1 - neon * 0.7)[..., None] * (1 - ink * 0.5)[..., None]
+    sh = np.zeros_like(a); sh[3:, 3:] = a[:-3, :-3]                          # the figure moved down-right
+    rim = np.clip(a - sh, 0, 1) * (1 - ink) * (1 - neon)
+    rim = cv2.GaussianBlur(rim, (0, 0), 0.8)
+    out = out * (1 - 0.4 * rim[..., None]) + np.float32([110, 190, 255]) * 0.4 * rim[..., None]
+    # the game's cel-shaded look (art/cel/celshade.py); 1 map px is about 7 of the sheet's px. The sheet is already
+    # inked, so no extra outline.
+    out = cel(out, alpha=a, px=7.0, outline=False, detail=0.85, seed=seed)
+    return np.clip(out, 0, 255)
+
+
 def pieces(enemy, view, skin=None):
     """The figure split into its body and legs, in its own crop (facing right): premultiplied float RGBA pieces, each
     leg with its pivot (top centre at the hip) and its phase, plus the feet's anchor."""
@@ -260,6 +337,7 @@ def pieces(enemy, view, skin=None):
     if skin: c = reskin(c, skin)
     if FIG[enemy].get('faces', {}).get(view, 1) < 0:
         a, c = a[:, ::-1].copy(), c[:, ::-1].copy()
+    c = grade(c, a, seed=zlib.crc32(f"{enemy}{view}".encode()) % 1000)   # after the flip: the light comes from the upper left in every view
     r = RIG[enemy]; hip = r['hip'][view] - y0; g = ground - y0
     flip = FIG[enemy].get('faces', {}).get(view, 1) < 0
     rng = sorted([(x1 - 1 - xb, x1 - 1 - xa) if flip else (xa - x0, xb - x0) for xa, xb in leg_ranges(enemy, view, None, None, cached=True)])
@@ -413,7 +491,7 @@ if __name__ == '__main__' and 'legs' in sys.argv:
             print(e, v, 'legs', len(P['legs']), [(round(l['pivot'][0]), round(l['pivot'][1]), round(l['length']), round(l['phase'], 2)) for l in P['legs']])
 
 
-OUT_PX = 256   # the frames are drawn at 320 px and saved at this size (plenty for the game's zoom, a third the file size)
+OUT_PX = 128   # the frames are drawn at 320 px and saved at this size: about as soft as the map (it is a 1x painting)
 
 
 if __name__ == '__main__' and len(sys.argv) == 1:

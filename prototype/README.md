@@ -42,6 +42,10 @@ resolution of the old 2x map art, so it looks softer on phones: a 2x repaint wou
   scrap sheets, a rusty pipe and a toppled street lamp with its glass on the ground.
 - Scorch marks under the burnt wrecks, oil under the truck and the spilt drums, rubble at the bases.
 
+**The look:** everything is cel-shaded with one filter (`../art/cel/`): flat bands of light with hard-edged shadows,
+ink on the edges, hatching in the shadows. The characters are also graded into the map's warm dusk light (warm greys,
+violet shadows, an orange rim of light from the upper left, road dust on their feet) and drawn about as soft as the map.
+
 **Aiming:** the Sniper's rifle and the Railgun's cannon turn to point at their target (up to about 40° and 32°), and
 every shot (rifle tracer, rail beam, plasma bolt, dragon glob) leaves from the posed muzzle (`mouthAt`), recoil and all.
 

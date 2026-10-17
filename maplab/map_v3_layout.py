@@ -427,6 +427,13 @@ for (a, b), _ in CABLES:
     cv2.polylines(lay, [pts - [0, 4]], False, (66, 60, 64), 1, cv2.LINE_AA, shift=4)
 img = lay
 
+# ---- 9. the game's cel-shaded look (art/cel/celshade.py): flat bands of light, ink on the edges, hatched shadows ----
+sys.path.insert(0, os.path.join(ROOT, 'art', 'cel'))
+from celshade import cel   # noqa: E402
+# done at 2x and brought back down, so the band edges come out smooth instead of stepping on whole pixels when zoomed
+big = cv2.resize(img, (W * 2, H * 2), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+img = cv2.resize(np.clip(cel(big, px=2.0), 0, 255), (W, H), interpolation=cv2.INTER_AREA).astype(np.uint8)
+
 cv2.imwrite(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'), img, [cv2.IMWRITE_WEBP_QUALITY, 95])
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)
 cv2.imwrite(os.path.join(HERE, 'out', 'map-v3-layout.png'), img)   # a PNG copy for looking at

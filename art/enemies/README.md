@@ -14,9 +14,13 @@ they look exactly like it. (`concept.png` is the earlier single-pose concept, ke
    legs swing from the hip and lift (a trot for the dog: the far legs are darker copies half a stride out); in the front
    and back views they step, lifting in turn, and the body rocks over the planted foot and bobs.
 3. **Sheets:** `prototype/assets/units/<name>.webp`: one row per view (front, three-quarter, side, back), 8 walk frames
-   then 2 attack frames (a wind-up, then the hit, side on), 256 px frames, feet at the bottom middle. It prints each
+   then 2 attack frames (a wind-up, then the hit, side on), feet at the bottom middle. It prints each
    sprite's height in the game's 160-unit frame: `sh` in `game.html` (`ENEMIES`, and `SHEETS` for the troops).
-4. **Troops:** the Garrison's troopers and the Drop Squad's mercs wear the raider's rig re-skinned (`SKINS`): AEGIS blue
+4. **The look:** before rigging, each figure is graded into the map's look (`grade`): its light warmed (orange from
+   the upper left, violet in the shadow), its colours calmed and its highlights softened, its lines a warm near-black,
+   grime and road dust on its legs, a warm rim light, then the game's cel shading (`../cel/celshade.py`). The frames are
+   saved at 128 px, about as soft as the map.
+5. **Troops:** the Garrison's troopers and the Drop Squad's mercs wear the raider's rig re-skinned (`SKINS`): AEGIS blue
    with a cyan visor, and orange.
 
 In the game (`game.html`, `SHEETS` / `viewOf`), every unit shows the view that matches where it's heading (coming down
