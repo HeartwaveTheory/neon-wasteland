@@ -18,8 +18,9 @@ playable prototype (towers, enemies, spells, waves, balance).
 - It's a web app that plays in a phone's browser (TEAM.md, "Phone prototypes are web apps").
 - `prototype/README.md` covers the build script (`build.py`), the screenshot and bot-playtest scripts (`test.mjs`,
   `sim.mjs`, `dragon-test.mjs`, `leash.mjs`, `living-test.mjs`, `walk.mjs`) and `tools/trace_road.py`.
-- The map is a painting (`art/map-v3-source.webp`, copied to `prototype/assets/map.webp`); `maplab/` no longer makes it.
-  Pads, HQ, gates, routes and the living map's lights, acid boxes and wires are measured on it in 1x pixels. The Node scripts find Playwright
+- The map is a painting (`art/map-v3-source.webp`); `maplab/map_v3_layout.py` makes the game's map from it
+  (`prototype/assets/map.webp`: 7 small pads, the half-size HQ and its longer road, ruins and debris). Pads, HQ, gates,
+  routes and the living map's lights, acid boxes and wires are measured on that map in 1x pixels. The Node scripts find Playwright
   through `$PLAYWRIGHT` (the path to its `index.mjs`).
 - The game's numbers are connected to the Game Tuner (`tuner.json`, `prototype/tuning.schema.json`). Change a tuned
   number in `game.html` and the schema's `default` together; `node prototype/tuning-check.mjs` checks they match.
