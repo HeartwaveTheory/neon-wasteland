@@ -9,10 +9,13 @@ The painting (art/map-v3-source.webp, 1672 x 941, the game's 1x map) keeps its o
 
     python3 maplab/map_v3_layout.py      -> prototype/assets/map.webp (and maplab/out/map-v3-layout.png, a PNG copy to look at)
 """
-import os
+import os, sys
 import numpy as np, cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.dont_write_bytecode = True
+import props as P   # noqa: E402  (the small props, drawn)
 ROOT = os.path.dirname(HERE)
 rng = np.random.default_rng(7)
 
@@ -229,21 +232,9 @@ for x, y in PADS:
     x0, y0 = x - pw // 2, y - ph // 2
     img[y0:y0 + ph, x0:x0 + pw] = comp(img[y0:y0 + ph, x0:x0 + pw], pad, pmask)
 
-# ---- 7. the power lines from the two pylons to the smaller HQ ----
-def cable(p0, p1, sag):
-    t = np.linspace(0, 1, 50)
-    return np.stack([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t + sag * 4 * t * (1 - t)], 1)
-
-WIRE_ENDS = {'L': hq((707, 612)), 'R': hq((1018, 572))}
-lay = img.copy()
-for (a, b), _ in CABLES:
-    pts = np.round(cable(a, hq(b), 10 + 0.04 * np.hypot(*np.subtract(hq(b), a))) * 16).astype(np.int32)
-    cv2.polylines(lay, [pts], False, (20, 16, 18), 4, cv2.LINE_AA, shift=4)
-    cv2.polylines(lay, [pts - [0, 4]], False, (66, 60, 64), 1, cv2.LINE_AA, shift=4)
-img = lay
-
-# ---- 8. ruins and debris: props cut from the painting (the old compound's outbuildings, its truck, tyres, barrels,
-# crates), wrecked (darker, sooty, a caved-in roof, a tilt), on the plaza and around the pad clearings ----
+# ---- 7. ruins and debris (under the power lines): the old compound's outbuildings, its truck and two ore cars, cut
+# from the painting and wrecked; and small props drawn in its style (props.py): drums, tyres, crates, scrap, a pipe, a
+# toppled street lamp. All clear of the road, the pads, the flags and the fences. ----
 def cutout(x0, y0, x1, y1, poly, label=None):
     """A prop from the painting: the crop (x0, y0)-(x1, y1), its outline traced by hand (poly, crop px), and the stencilled
     label it carries painted out (label: a box in crop px), so a copy doesn't read as the HQ's own building."""
@@ -255,34 +246,82 @@ def cutout(x0, y0, x1, y1, poly, label=None):
     return crop, cv2.GaussianBlur(a, (0, 0), 0.5)
 
 
-def wreck(prop, dark=0.72, soot=0.35, hole=None, angle=0, seed=0, hue=None):
-    """Wreck a prop: recoloured (hue, OpenCV 0-180), darker, sooty from the top down, a caved-in hole (polygon in prop
-    px) with broken rafters across it, soot burnt round it and rust running down from it, and a tilt."""
+SS = 4
+def _p(pts): return np.round(np.array(pts, np.float32) * SS * 16).astype(np.int32)
+
+
+def wreck(prop, dark=0.75, soot=0.3, hue=None, holes=(), windows=(), wheel=None, dents=0, rust=0.35, angle=0, seed=0):
+    """Wreck a prop, drawn at 4x: recoloured (hue, OpenCV 0-180), darker and sooty from the top, rust patches, dents;
+    holes (polygons, prop px) caved in with a dark inside, a rusty rim, bent flaps and soot rising above; smashed
+    windows (polygons); a lost wheel (x0, y0, x1, y1) with the axle propped on a cinder block; then a tilt."""
     c, a = prop; h, w = a.shape
     r = np.random.default_rng(seed)
     if hue is not None:
         hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV).astype(np.float32)
         hsv[..., 0] = hue; hsv[..., 1] = np.clip(hsv[..., 1] * 1.1 + 40, 0, 200)
         c = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
-    c = c.astype(np.float32) * dark
-    c = c * np.linspace(1 - soot, 1, h)[:, None, None] * np.array([0.95, 0.98, 1.06])
-    if hole:
-        pts = np.array(hole, np.int32)
-        bx, by, bw, bh = cv2.boundingRect(pts)
-        burn = np.zeros((h, w), np.float32)                              # soot burnt round the hole
-        cv2.ellipse(burn, (bx + bw // 2, by + bh // 2), (bw // 2 + 8, bh // 2 + 7), 0, 0, 360, 1, -1)
-        c = c * (1 - 0.55 * cv2.GaussianBlur(burn, (0, 0), 4))[..., None]
-        for _ in range(5):                                               # rust running down below it
-            x = int(r.uniform(bx, bx + bw)); y = by + bh
-            cv2.line(c, (x, y), (x + int(r.uniform(-1, 2)), min(h - 2, y + int(r.uniform(8, 22)))), (40, 70, 128), 1, cv2.LINE_AA)
-        cv2.fillPoly(c, [pts], (24, 18, 20))                             # the dark inside
-        for k in range(3):                                               # broken rafters across it
-            x = bx + int(bw * (k + 1) / 4)
-            cv2.line(c, (x, by - 1), (x + int(r.uniform(-6, 6)), by + int(bh * r.uniform(0.5, 1.1))), (70, 78, 90), 2, cv2.LINE_AA)
-            cv2.line(c, (x, by - 1), (x + int(r.uniform(-6, 6)), by + int(bh * r.uniform(0.5, 1.1))), (16, 12, 14), 1, cv2.LINE_AA)
-        cv2.polylines(c, [pts], True, (40, 74, 132), 2, cv2.LINE_AA)    # torn, rusty edge
-        cv2.polylines(c, [pts], True, (14, 10, 12), 1, cv2.LINE_AA)
-    c = c.clip(0, 255).astype(np.uint8)
+    C = cv2.resize(c, (w * SS, h * SS), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+    A = cv2.resize(a, (w * SS, h * SS), interpolation=cv2.INTER_LINEAR)
+    H4, W4 = A.shape
+    def lay(m, col, al=1.0):
+        nonlocal C
+        m = (m.astype(np.float32) * al)[..., None]
+        C = C * (1 - m) + np.array(col, np.float32) * m
+    def mpoly(pts):
+        m = np.zeros((H4, W4), np.uint8); cv2.fillPoly(m, [_p(pts)], 1, cv2.LINE_AA, shift=4); return m.astype(np.float32)
+    def mline(pts, wd, closed=False):
+        m = np.zeros((H4, W4), np.uint8); cv2.polylines(m, [_p(pts)], closed, 1, max(1, int(wd * SS)), cv2.LINE_AA, shift=4); return m.astype(np.float32)
+    C *= dark
+    C *= np.linspace(1 - soot, 1, H4)[:, None, None]
+    # rust: patches where a soft noise is high, streaked down a little
+    n = cv2.resize(r.standard_normal((h // 4 + 2, w // 4 + 2)).astype(np.float32), (W4, H4), interpolation=cv2.INTER_CUBIC)
+    n = cv2.GaussianBlur(n, (0, 0), SS * 1.2)
+    lay(np.clip((n - 0.55) * 2.5, 0, 1) * A, (36, 76, 140), rust)
+    for _ in range(dents):   # dents: a dark crease with a lit lip below it
+        x, y = r.uniform(0.15, 0.85) * w, r.uniform(0.35, 0.8) * h
+        pts = [(x - 2.5, y), (x, y - 0.8), (x + 2.5, y + 0.2)]
+        lay(mline(pts, 0.6) * A, (20, 16, 18), 0.8); lay(mline([(px, py + 0.7) for px, py in pts], 0.5) * A, (210, 210, 200), 0.35)
+    for wp in windows:   # smashed: dark, with cracks running out from a hit
+        m = mpoly(wp) * A; lay(m, (30, 26, 28))
+        xs = [q[0] for q in wp]; ys = [q[1] for q in wp]; hx, hy = r.uniform(min(xs), max(xs)), r.uniform(min(ys), max(ys))
+        for k in range(6):
+            t = k / 6 * 2 * np.pi + r.uniform(-.3, .3); L = r.uniform(2, 5)
+            lay(mline([(hx, hy), (hx + np.cos(t) * L, hy + np.sin(t) * L * 0.6)], 0.35) * m, (200, 220, 225), 0.8)
+    if wheel:   # the wheel's gone: shadow where it was, the axle on a cinder block
+        x0, y0, x1, y1 = wheel
+        m = np.zeros((H4, W4), np.float32); cv2.ellipse(m, (int((x0 + x1) / 2 * SS), int((y0 + y1) / 2 * SS)), (int((x1 - x0) / 2 * SS), int((y1 - y0) / 2 * SS)), 0, 0, 360, 1, -1, cv2.LINE_AA)
+        lay(m * A, (28, 24, 26))
+        bx = (x0 + x1) / 2
+        blk = mpoly([(bx - 2.6, y1 - 4.2), (bx + 2.6, y1 - 4.2), (bx + 2.6, y1), (bx - 2.6, y1)])
+        A = np.maximum(A, blk)
+        lay(blk, (120, 124, 128)); lay(mpoly([(bx + 0.8, y1 - 4.2), (bx + 2.6, y1 - 4.2), (bx + 2.6, y1), (bx + 0.8, y1)]), (80, 82, 86))
+        lay(mline([(bx - 2.6, y1 - 4.2), (bx + 2.6, y1 - 4.2), (bx + 2.6, y1), (bx - 2.6, y1)], 0.5, True), (18, 14, 16))
+        lay(mpoly([(bx - 1.5, y1 - 3), (bx - 0.4, y1 - 3), (bx - 0.4, y1 - 1.2), (bx - 1.5, y1 - 1.2)]), (40, 40, 44))
+    for hp in holes:
+        pts = np.array(hp, np.float32); bx, by = pts[:, 0].min(), pts[:, 1].min(); bw, bh = np.ptp(pts[:, 0]), np.ptp(pts[:, 1])
+        # soot rising above and burnt round it
+        sm = np.zeros((H4, W4), np.float32)
+        cv2.ellipse(sm, (int((bx + bw / 2) * SS), int((by + bh / 2) * SS)), (int((bw / 2 + 5) * SS), int((bh / 2 + 4) * SS)), 0, 0, 360, 1, -1)
+        cv2.ellipse(sm, (int((bx + bw / 2) * SS), int(max(1, by - 2) * SS)), (int(bw / 3 * SS), int(5 * SS)), 0, 0, 360, 1, -1)
+        lay(cv2.GaussianBlur(sm, (0, 0), SS * 2.5) * A, (16, 14, 16), 0.55)
+        hole = mpoly(hp)
+        g = np.linspace(0, 1, H4)[:, None] * np.ones((1, W4))
+        gy = np.clip((g * H4 / SS - by) / max(bh, 1), 0, 1)
+        inside = np.stack([14 + 30 * gy, 12 + 24 * gy, 14 + 26 * gy], -1)        # darker at the top: a deep hole
+        C = C * (1 - hole[..., None]) + inside * hole[..., None]
+        lay(mline(hp, 1.1, True) * A, (36, 78, 150), 0.95)                         # a rusty rim
+        lay(mline(hp, 0.45, True) * A, (16, 12, 14))
+        ring = cv2.dilate(hole, np.ones((SS * 5, SS * 5), np.uint8)) * (1 - hole) * A
+        metal = (C * ring[..., None]).sum((0, 1)) / max(ring.sum(), 1)            # the wreck's own metal round the hole
+        for k in r.choice(len(hp), min(3, len(hp)), replace=False):                # bent flaps, curling in
+            (px, py), (qx, qy) = hp[k], hp[(k + 1) % len(hp)]
+            mx, my = (px + qx) / 2, (py + qy) / 2; cx, cy = bx + bw / 2, by + bh / 2
+            tip = (mx + (cx - mx) * 0.45, my + (cy - my) * 0.45)
+            f = mpoly([(px * .7 + mx * .3, py * .7 + my * .3), (qx * .7 + mx * .3, qy * .7 + my * .3), tip])
+            lay(f, metal * 1.15); lay(mline([(px * .7 + mx * .3, py * .7 + my * .3), tip], 0.5), np.minimum(255, metal * 1.9), 0.6)
+            lay(mline([(px * .7 + mx * .3, py * .7 + my * .3), (qx * .7 + mx * .3, qy * .7 + my * .3), tip], 0.4, True), (16, 12, 14))
+    c = cv2.resize(C.clip(0, 255), (w, h), interpolation=cv2.INTER_AREA).astype(np.uint8)
+    a = cv2.resize(A, (w, h), interpolation=cv2.INTER_AREA)
     if angle:
         M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1)
         c = cv2.warpAffine(c, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
@@ -293,18 +332,33 @@ def wreck(prop, dark=0.72, soot=0.35, hole=None, angle=0, seed=0, hue=None):
 def place(im, prop, cx, cy, scale=1.0, flip=False, shadow=0.35):
     """Stand a prop with its bottom centre at (cx, cy), with a soft contact shadow to the lower right."""
     c, a = prop
+    rows, cols = np.nonzero(a > 0.3)                                     # trim to what's drawn, so it stands on its feet
+    c, a = c[rows.min():rows.max() + 1, cols.min():cols.max() + 1], a[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
     if flip: c, a = c[:, ::-1], a[:, ::-1]
     if scale != 1:
         c = cv2.resize(c, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         a = cv2.resize(a, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     h, w = a.shape
-    x0, y0 = int(cx - w / 2), int(cy - h)
+    x0, y0 = int(round(cx - w / 2)), int(round(cy - h))
     sh = np.zeros((H, W), np.float32)
-    cv2.ellipse(sh, (int(cx + w * .08), int(cy - 1)), (int(w * .55), max(3, int(h * .14))), 0, 0, 360, 1, -1)
-    sh = cv2.GaussianBlur(sh, (0, 0), 3)[..., None]
+    cv2.ellipse(sh, (int(cx + w * .12), int(cy - min(4, h * .05))), (max(2, int(w * .56)), max(2, int(min(5, h * .1)))), 0, 0, 360, 1, -1)
+    sh = cv2.GaussianBlur(sh, (0, 0), 1.8)[..., None]
     im = (im.astype(np.float32) * (1 - shadow * sh)).astype(np.uint8)
-    region = im[y0:y0 + h, x0:x0 + w]
-    im[y0:y0 + h, x0:x0 + w] = comp(region, c, a[..., None])
+    im[y0:y0 + h, x0:x0 + w] = comp(im[y0:y0 + h, x0:x0 + w], c, a[..., None])
+    return im
+
+
+def stain(im, cx, cy, rx, ry, col, alpha, seed, gloss=False):
+    """A stain on the dirt: scorch or oil (a ragged soft ellipse; oil gets a faint shine)."""
+    r = np.random.default_rng(seed)
+    m = np.zeros((H, W), np.float32)
+    for _ in range(6):
+        cv2.ellipse(m, (int(cx + r.normal(0, rx * .25)), int(cy + r.normal(0, ry * .25))), (int(rx * r.uniform(.5, .9)), int(ry * r.uniform(.5, .9))), 0, 0, 360, 1, -1)
+    m = cv2.GaussianBlur(m, (0, 0), 1.6)
+    im = comp(im, np.broadcast_to(np.float32(col), im.shape), m[..., None] * alpha)
+    if gloss:
+        g = np.zeros((H, W), np.float32); cv2.ellipse(g, (int(cx - rx * .3), int(cy - ry * .25)), (max(1, int(rx * .35)), 1), -8, 0, 360, 1, -1)
+        im = comp(im, np.broadcast_to(np.float32((150, 150, 160)), im.shape), cv2.GaussianBlur(g, (0, 0), 0.8)[..., None] * 0.45)
     return im
 
 
@@ -317,37 +371,61 @@ def rubble(im, cx, cy, n, spread, seed):
 
 
 MESS = cutout(722, 818, 808, 882, [(1, 4), (80, 4), (78, 58), (1, 58)], label=(22, 30, 50, 44))
-BUNKS = cutout(640, 782, 722, 882, [(4, 22), (60, 18), (68, 24), (68, 56), (76, 60), (76, 88), (4, 88), (2, 58)], label=(22, 64, 58, 80))
 SHED = cutout(986, 782, 1102, 862, [(8, 8), (108, 6), (110, 30), (104, 58), (14, 58), (10, 30)], label=(13, 36, 34, 49))
-TRUCK = cutout(986, 838, 1084, 898, [(8, 8), (62, 4), (88, 4), (93, 14), (94, 46), (88, 55), (8, 55), (4, 42)])
-TYRES = cutout(154, 740, 214, 782, [(26, 16), (56, 16), (57, 40), (26, 40)])
-BARRELS = cutout(970, 840, 996, 878, [(8, 2), (20, 2), (21, 33), (8, 33)])
-CRATES = cutout(772, 780, 806, 820, [(1, 2), (14, 2), (15, 36), (1, 36)])
+TRUCK = cutout(986, 838, 1084, 898, [(8, 8), (62, 4), (88, 4), (93, 14), (94, 46), (91, 58), (8, 58), (4, 42)], label=(33, 28, 57, 35))
+ORE_BLUE = cutout(1226, 274, 1306, 320, [(15, 7), (72, 5), (76, 10), (75, 36), (70, 40), (17, 40), (14, 35)])
+ORE_RED = cutout(252, 284, 342, 330, [(17, 10), (79, 8), (83, 13), (82, 36), (76, 41), (19, 41), (16, 36)])
+
+# stains first (under everything): scorch under the burnt container and shed, oil from the truck and the spilt drums
+for k, (x, y, rx, ry, col, al, gl) in enumerate([
+        (676, 866, 46, 12, (20, 18, 20), 0.45, False), (1112, 800, 50, 12, (20, 18, 20), 0.4, False),
+        (1092, 892, 30, 8, (24, 20, 22), 0.55, True), (606, 789, 9, 3, (24, 20, 22), 0.6, True),
+        (1146, 630, 8, 3, (24, 20, 22), 0.6, True), (512, 226, 7, 3, (24, 20, 22), 0.55, True)]):
+    img = stain(img, x, y, rx, ry, col, al, 60 + k, gl)
 
 ruins = [
-    # the plaza: a burnt-out container, a caved-in shed, a dead truck, and junk
-    (wreck(MESS, dark=0.8, soot=0.45, hue=12, hole=[(6, 5), (30, 3), (52, 8), (58, 20), (40, 30), (24, 26), (10, 18)], angle=-4, seed=1), 676, 868, 1.0, False),
-    (wreck(SHED, dark=0.62, soot=0.4, hole=[(40, 8), (70, 6), (100, 12), (96, 30), (74, 38), (52, 30)], angle=5, seed=2), 1092, 612, 0.82, True),
-    (wreck(TRUCK, dark=0.55, soot=0.55, angle=-9), 1102, 870, 0.92, True),
-    (wreck(TYRES, dark=0.8, soot=0.15), 640, 640, 0.8, False),
-    (wreck(CRATES, dark=0.7, soot=0.3, angle=-14), 662, 646, 0.8, True),
-    (wreck(BARRELS, dark=0.75, soot=0.15, angle=80), 616, 652, 0.85, False),
-    (wreck(TYRES, dark=0.85, soot=0.1), 724, 768, 0.8, False),
-    (wreck(BARRELS, dark=0.8, soot=0.1, angle=88), 790, 708, 0.9, False),   # knocked over
-    (wreck(CRATES, dark=0.8, soot=0.2), 1062, 704, 0.9, True),
-    # around the pad clearings, at their edges, clear of the pads
-    (wreck(TYRES, dark=0.85, soot=0.1), 392, 214, 0.65, True),
-    (wreck(BARRELS, dark=0.8, soot=0.1, angle=-84), 534, 160, 0.8, False),
-    (wreck(CRATES, dark=0.75, soot=0.25, angle=-6), 448, 404, 0.75, False),
-    (wreck(BARRELS, dark=0.8, soot=0.1), 950, 262, 0.8, False),
-    (wreck(TYRES, dark=0.85, soot=0.1), 1094, 222, 0.6, False),
-    (wreck(CRATES, dark=0.75, soot=0.25, angle=5), 1124, 402, 0.75, True),
-    (wreck(BARRELS, dark=0.8, soot=0.1, angle=92), 1276, 356, 0.8, False),
+    # left plaza: the burnt-out container, a toppled street lamp, a junk pile by the pylon
+    (wreck(MESS, dark=0.8, soot=0.45, hue=12, holes=[[(6, 5), (30, 3), (52, 8), (58, 20), (40, 30), (24, 26), (10, 18)]], dents=3, seed=1, angle=-4), 676, 868, 1.0, False),
+    (P.lamp_toppled(44, seed=1), 640, 800, 1.0, False),
+    (P.tyres(3, seed=2), 652, 622, 1.0, False),
+    (P.drum((60, 80, 150), bands=False, lying=True, seed=3), 616, 630, 1.0, False),
+    (P.crate(broken=True, seed=4), 676, 628, 1.0, False),
+    (P.drum(seed=5), 720, 776, 1.0, False),
+    (P.scrap(seed=6), 610, 790, 1.0, False),
+    # right plaza: the caved-in shed, the dead truck, an ore car on its side of the road, drums by the cliff
+    (wreck(SHED, dark=0.66, soot=0.4, holes=[[(40, 8), (70, 6), (100, 12), (96, 30), (74, 38), (52, 30)]], dents=2, seed=2, angle=4), 1112, 800, 0.82, True),
+    (wreck(TRUCK, dark=0.58, soot=0.5, windows=[[(61, 13), (78, 13), (78, 20), (61, 20)]], wheel=(34, 48, 48, 59), holes=[[(44, 7), (58, 6), (60, 13), (50, 16)]], dents=3, seed=7, angle=-6), 1096, 900, 0.92, True),
+    (P.drum(seed=8), 1144, 626, 1.0, False),
+    (P.drum((40, 170, 220), lying=True, seed=9), 1162, 634, 1.0, True),
+    (P.crate(seed=10), 1062, 704, 1.0, True),
+    (P.pipe(24, seed=11), 1000, 600, 1.0, False),
+    # round the pad clearings, at their edges
+    (P.tyres(2, seed=12), 392, 214, 0.9, False),
+    (P.drum((60, 80, 150), bands=False, lying=True, seed=13), 526, 228, 0.9, False),
+    (wreck(ORE_RED, dark=0.7, soot=0.3, holes=[[(30, 11), (50, 10), (56, 18), (40, 22)]], wheel=(58, 34, 70, 42), dents=2, seed=14, angle=-7), 452, 418, 0.62, False),
+    (P.scrap(seed=15), 648, 396, 0.9, True),
+    (P.drum(seed=16), 952, 262, 0.9, False),
+    (P.tyre_lean(seed=17), 1094, 222, 0.9, False),
+    (wreck(ORE_BLUE, dark=0.7, soot=0.3, holes=[[(34, 9), (52, 8), (58, 16), (44, 20)]], dents=2, seed=18, angle=8), 1268, 362, 0.62, True),
+    (P.crate(broken=True, seed=19), 1126, 404, 0.9, False),
 ]
 for prop, x, y, sc, fl in ruins:
     img = place(img, prop, x, y, sc, fl)
-for k, (x, y, n) in enumerate([(676, 872, 60), (1092, 616, 45), (640, 650, 30), (1102, 874, 24)]):
-    img = rubble(img, x, y, n, 16, 40 + k)
+for k, (x, y, n, sp) in enumerate([(676, 872, 60, 16), (1112, 802, 70, 24), (1096, 904, 20, 12), (652, 630, 14, 10)]):
+    img = rubble(img, x, y, n, sp, 40 + k)
+
+# ---- 8. the power lines from the two pylons to the smaller HQ ----
+def cable(p0, p1, sag):
+    t = np.linspace(0, 1, 50)
+    return np.stack([p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t + sag * 4 * t * (1 - t)], 1)
+
+WIRE_ENDS = {'L': hq((707, 612)), 'R': hq((1018, 572))}
+lay = img.copy()
+for (a, b), _ in CABLES:
+    pts = np.round(cable(a, hq(b), 10 + 0.04 * np.hypot(*np.subtract(hq(b), a))) * 16).astype(np.int32)
+    cv2.polylines(lay, [pts], False, (20, 16, 18), 4, cv2.LINE_AA, shift=4)
+    cv2.polylines(lay, [pts - [0, 4]], False, (66, 60, 64), 1, cv2.LINE_AA, shift=4)
+img = lay
 
 cv2.imwrite(os.path.join(ROOT, 'prototype', 'assets', 'map.webp'), img, [cv2.IMWRITE_WEBP_QUALITY, 95])
 os.makedirs(os.path.join(HERE, 'out'), exist_ok=True)

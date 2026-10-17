@@ -28,16 +28,16 @@ The pads, HQ, gates and routes are measured from that map (the routes with `tool
 HQ lights, searchlight and power-line pulses move with the HQ (`hqAt` in `game.html`). The painting is half the
 resolution of the old 2x map art, so it looks softer on phones: a 2x repaint would fix that.
 
-**Ruins and debris** (also made by `map_v3_layout.py`): a burnt-out container, a caved-in shed and a dead truck on the
-plaza, and tyres, barrels and crates round the pad clearings: props cut from the painting (the old compound's
-outbuildings, its truck, junk), wrecked (darker, sooty, roofs caved in, rust running down, tilted, rubble at the base)
-and placed clear of the road and the pads.
+**Ruins and debris** (also made by `map_v3_layout.py`), clear of the road, the pads, the flags and the fences:
 
-**Critters** (`game.html`, "critters"): 7 wasteland rats, 5 crows and a stray dog with a scrap-metal patch live on the
-dirt round the pads and on the plaza. Rats scurry in bursts and stop to sniff, crows hop and peck, the dog wanders and
-sits. They keep off the road and the pads and scatter from trouble (enemies, fire, a scuffle, and blasts from further
-off): rats bolt, the dog trots away, crows take off and land somewhere else. They run on real time, calmer with reduced
-motion, and never touch the game. `critters-test.mjs` checks them and takes close-ups (`shots/40-42`).
+- Wrecks cut from the painting and wrecked at 4x (`wreck`): a burnt-out container recoloured to rust, a caved-in shed,
+  a dead army truck (smashed windscreen, a wheel gone and its axle on a cinder block), and two ore cars crashed at the
+  edges of the pad clearings. Their damage: soot from the top, rust patches, dents, roof holes with a dark inside, a
+  rusty rim, bent flaps and soot rising above. Labels are painted out so they don't read as the HQ's own buildings.
+- Small props drawn in the painting's style (`maplab/props.py`, 4x, ink outlines, lit from the upper left): oil drums
+  (hazard yellow, rust red, blue; standing or knocked over), tyre stacks and a leaning tyre, crates (one smashed), bent
+  scrap sheets, a rusty pipe and a toppled street lamp with its glass on the ground.
+- Scorch marks under the burnt wrecks, oil under the truck and the spilt drums, rubble at the bases.
 
 **Aiming:** the Sniper's rifle and the Railgun's cannon turn to point at their target (up to about 40° and 32°), and
 every shot (rifle tracer, rail beam, plasma bolt, dragon glob) leaves from the posed muzzle (`mouthAt`), recoil and all.
