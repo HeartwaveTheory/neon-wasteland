@@ -23,7 +23,8 @@ The map is **Map v3**: a painting (`../art/map-v3-source.webp`, 1672 × 941, the
 made on it by `../maplab/map_v3_layout.py` (it writes `assets/map.webp`):
 
 - **7 small pads** instead of 4 big ones: the painting's 4 pads at about half size (its own pad art, scaled) on cleared
-  dirt, a 5th beside the 3rd on the same ledge, and 2 on the plaza either side of the road.
+  ground painted to match the road's sand (`paint_ground`: golden and ochre patches, brush strokes, pebbles, cracks,
+  scraps, tyre tracks, worn rings round the pads, shade by the rocks), a 5th beside the 3rd on the same ledge, and 2 on the plaza either side of the road.
 - **A half-size AEGIS HQ**, further down the plaza; the road (with its rope fences) runs on through the plaza to its
   gate, so enemies walk about 180 px further. Its power lines run from the same two pylons to the smaller HQ.
 

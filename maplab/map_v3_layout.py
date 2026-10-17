@@ -24,6 +24,7 @@ BIG_PADS = [(463, 182), (1022, 240), (553, 363), (1200, 378)]   # the painting's
 PADS = [(463, 182), (1022, 240), (500, 366), (1200, 378), (604, 360), (752, 650), (1018, 650)]   # game order
 PAD_SRC = (1022, 240, 96, 50)    # the painted pad copied for the small ones: centre and half-size of the crop
 PAD_S = 0.49                      # small pad = 0.49 x the painted one (ring rx 90 -> 44)
+PAD_RX, PAD_RY = 96 * PAD_S, 50 * PAD_S   # the small pad, ring included
 # the compound (and its comms mast): the outline follows the ground line, so no cliff is cut
 # (the holo flags with their sandbags, either side, stay where they are: plaza dressing)
 HQ_POLY = [(700, 941), (640, 905), (640, 845), (598, 832), (586, 760), (586, 740), (668, 740), (668, 650), (626, 612), (690, 598), (790, 598),
@@ -76,11 +77,11 @@ def stones(im, mask, density, seed, big=False):
     for k in r.choice(len(xs), n, replace=False):
         x, y = int(xs[k]), int(ys[k])
         rx = r.uniform(1.0, 2.0) * (2.2 if big and r.random() < .5 else 1); ry = rx * r.uniform(.55, .8)
-        base = im[y, x].astype(np.float32)
+        base = im[y, x].astype(np.float32) * r.choice([1.15, 1.25, 0.9]) * np.array(r.choice([[1, 1, 1], [1.12, 0.95, 0.95], [0.95, 0.98, 1.08]]))   # mostly lighter than the ground: grey, violet or ochre
         cv2.ellipse(lay, (x + 1, y + 1), (round(rx + 1), round(ry + 1)), 0, 0, 360, tuple(float(c) for c in base * .75), -1, cv2.LINE_AA)   # shadow
         cv2.ellipse(lay, (x, y), (round(rx), round(ry)), 0, 0, 360, tuple(float(c) for c in base * r.uniform(.7, 1.05)), -1, cv2.LINE_AA)
-        cv2.ellipse(lay, (x, y), (round(rx), round(ry)), 0, 0, 360, tuple(float(c) for c in base * .4), 1, cv2.LINE_AA)
-        cv2.ellipse(lay, (x - 1, y - 1), (max(1, round(rx * .45)), max(1, round(ry * .4))), 0, 0, 360, tuple(float(min(255, c * 1.25)) for c in base), -1, cv2.LINE_AA)
+        cv2.ellipse(lay, (x - 1, y - 1), (max(1, round(rx * .5)), max(1, round(ry * .45))), 0, 0, 360, tuple(float(min(255, c * 1.3)) for c in base), -1, cv2.LINE_AA)
+        if big and rx > 2.5: cv2.ellipse(lay, (x, y), (round(rx), round(ry)), 0, 0, 360, (26, 30, 40), 1, cv2.LINE_AA)   # only big stones get ink
     return lay
 
 
@@ -114,7 +115,97 @@ def detail(mask, p=24):
     return full
 
 
-def dirt(im, mask, seed, band=26, puddles=(), settle=10, pct=65):
+# The ground's palette (BGR), measured on the painting's own sand: lit golden sand (the road and the plaza), a deeper
+# ochre, pale dust, and the violet-brown shade at the foot of the rocks.
+SAND = dict(lit=np.float32([96, 146, 200]), ochre=np.float32([68, 114, 176]), pale=np.float32([130, 172, 210]),
+            shade=np.float32([88, 74, 92]), ink=np.float32([30, 36, 48]), grass=np.float32([58, 132, 150]))
+
+
+def smooth01(a, b, x):
+    t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
+
+
+def paint_ground(base, mask, rock_d, seed, tracks=(), rings=()):
+    """Paint lively ground over base (BGR float) inside mask: colour patches, brush strokes, pebbles, cracks, tyre tracks,
+    worn dust rings (rings: (x, y, rx, ry)) and grass tufts. rock_d: distance (px) to the nearest rock."""
+    r = np.random.default_rng(seed)
+    ys, xs = np.nonzero(mask)
+    y0, y1, x0, x1 = max(0, ys.min() - 4), min(H, ys.max() + 5), max(0, xs.min() - 4), min(W, xs.max() + 5)
+    g = base.copy()
+    # colour: ochre and pale patches, a little lightness wobble, violet-brown shade at the rocks
+    n1, n2, n3 = noise(36, seed + 1), noise(30, seed + 2), noise(9, seed + 3)
+    t_o = smooth01(0.4, 1.4, n1)[..., None] * 0.55; t_p = smooth01(0.5, 1.5, n2)[..., None] * 0.5
+    g = g * (1 - t_o) + SAND['ochre'] * t_o
+    g = g * (1 - t_p) + SAND['pale'] * t_p
+    g *= (1 + 0.05 * n3)[..., None]
+    sh = np.exp(-rock_d / 9)[..., None] * 0.55
+    g = g * (1 - sh) + SAND['shade'] * sh
+    lay = np.clip(g, 0, 255).astype(np.uint8)
+    din = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
+    inside = lambda x, y: 0 <= x < W and 0 <= y < H and mask[int(y), int(x)] > 0
+    pts = lambda k: [(int(xs[i]), int(ys[i])) for i in r.choice(len(xs), k)]
+    area = len(xs)
+    # brush strokes: short, mostly level, a shade lighter or darker than the ground under them
+    for x, y in pts(int(area * 0.11)):
+        L = r.uniform(3, 10); a = r.normal(0, 0.25) + (np.pi if r.random() < .5 else 0)
+        c = g[y, x] * r.choice([r.uniform(0.74, 0.86), r.uniform(1.14, 1.28)])
+        c = c + r.normal(0, 4, 3)
+        cv2.line(lay, (x, y), (int(x + np.cos(a) * L), int(y + np.sin(a) * L * 0.6)), tuple(float(v) for v in np.clip(c, 0, 255)), 1, cv2.LINE_AA)
+    # tyre tracks: two lines of tread marks
+    for path in tracks:
+        P = np.array(path, np.float32)
+        seg = np.concatenate([np.linspace(P[i], P[i + 1], max(2, int(np.hypot(*(P[i + 1] - P[i])) / 1.5)), endpoint=False) for i in range(len(P) - 1)])
+        d = np.gradient(seg, axis=0); d /= np.maximum(np.linalg.norm(d, axis=1, keepdims=True), 1e-3)
+        nrm = np.stack([-d[:, 1], d[:, 0]], 1)
+        for side in (-4.5, 4.5):
+            for k in range(0, len(seg), 2):
+                q = seg[k] + nrm[k] * side
+                if not inside(*q): continue
+                a = q + nrm[k] * 1.4; b = q - nrm[k] * 1.4
+                cv2.line(lay, tuple(int(v) for v in a), tuple(int(v) for v in b), tuple(float(v) for v in g[int(q[1]), int(q[0])] * 0.72), 1, cv2.LINE_AA)
+    # worn dust rings round the pads
+    for (px, py, rx, ry) in rings:
+        m = np.zeros((H, W), np.float32)
+        cv2.ellipse(m, (int(px), int(py)), (int(rx * 1.35), int(ry * 1.45)), 0, 0, 360, 1, -1, cv2.LINE_AA)
+        cv2.ellipse(m, (int(px), int(py)), (int(rx * 1.02), int(ry * 1.02)), 0, 0, 360, 0, -1, cv2.LINE_AA)
+        m = cv2.GaussianBlur(m, (0, 0), 2.5) * smooth01(-0.2, 0.9, noise(7, seed + int(px)))
+        lay = np.clip(lay * (1 - 0.35 * m[..., None]) + SAND['pale'] * 0.35 * m[..., None], 0, 255).astype(np.uint8)
+    # cracks in the dry ground
+    for x, y in pts(max(2, area // 9000)):
+        if din[y, x] < 12: continue
+        for branch in range(2):
+            cx, cy, a = float(x), float(y), r.uniform(0, 2 * np.pi)
+            line = [(cx, cy)]
+            for _ in range(int(r.integers(5, 12))):
+                a += r.normal(0, 0.6); cx += np.cos(a) * r.uniform(2, 4); cy += np.sin(a) * r.uniform(2, 4) * 0.6
+                if not inside(cx, cy) or din[int(cy), int(cx)] < 6: break
+                line.append((cx, cy))
+            if len(line) > 2:
+                cv2.polylines(lay, [np.round(np.array(line) * 16).astype(np.int32)], False, tuple(float(v) for v in g[y, x] * 0.6), 1, cv2.LINE_AA, shift=4)
+    # scraps of junk: bolts, bits of sheet metal, a rusty can
+    for x, y in pts(max(4, area // 1800)):
+        c = np.float32(r.choice([[120, 124, 130], [48, 82, 140], [70, 70, 76], [60, 120, 170]]))
+        w2, h2, a = r.uniform(1, 2.6), r.uniform(0.6, 1.4), r.uniform(0, 180)
+        box = cv2.boxPoints(((x, y), (w2 * 2, h2 * 2), a)).astype(np.float32)
+        cv2.fillPoly(lay, [np.round(box * 16).astype(np.int32)], tuple(float(v) for v in c), cv2.LINE_AA, shift=4)
+        cv2.line(lay, (x, y + 1), (x + 1, y + 1), tuple(float(v) for v in g[y, x] * 0.6), 1, cv2.LINE_AA)
+    # grass tufts in the shade by the rocks
+    near = np.nonzero((mask > 0) & (rock_d < 14) & (rock_d > 2))
+    if len(near[0]):
+        for i in r.choice(len(near[0]), min(len(near[0]), max(3, area // 1500))):
+            x, y = int(near[1][i]), int(near[0][i])
+            for _ in range(int(r.integers(3, 6))):
+                a = -np.pi / 2 + r.normal(0, 0.45); L = r.uniform(2, 4.5)
+                c = SAND['grass'] * r.uniform(0.75, 1.15)
+                cv2.line(lay, (x, y), (int(round(x + np.cos(a) * L)), int(round(y + np.sin(a) * L))), tuple(float(v) for v in c), 1, cv2.LINE_AA)
+    out = lay.astype(np.float32)
+    # pebbles and stones
+    out = stones(np.clip(out, 0, 255).astype(np.uint8), mask, 0.0011, seed).astype(np.float32)
+    out = stones(np.clip(out, 0, 255).astype(np.uint8), mask, 0.00025, seed + 50, big=True).astype(np.float32)
+    return out
+
+
+def dirt(im, mask, seed, band=26, puddles=(), settle=10, pct=65, tracks=(), rings=()):
     ring = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * band + 1, 2 * band + 1))) & (1 - mask)
     L = lab[..., 0]
     lit = (ring > 0) & (L > np.percentile(L[ring > 0], pct))
@@ -128,11 +219,11 @@ def dirt(im, mask, seed, band=26, puddles=(), settle=10, pct=65):
     edge = cv2.GaussianBlur(cv2.resize(cv2.inpaint(sm, hm2, 8, cv2.INPAINT_TELEA), (W, H), interpolation=cv2.INTER_CUBIC).astype(np.float32), (0, 0), 3)
     d_in = cv2.distanceTransform(mask, cv2.DIST_L2, 3)
     w = np.exp(-d_in / settle)[..., None]                                    # match the edge, then settle on the lit dirt
-    fill = edge * w + ref_bgr * (1 - w)
-    fill = fill * (1 + MOTTLE)[..., None] + detail(mask)
+    fill = edge * w + (ref_bgr * 0.35 + SAND['lit'] * 0.65) * (1 - w)      # settle on golden sand, not the muddy edge
+    fill = fill + detail(mask) * 0.7
     rock = ((ring > 0) & ~dirt_px & (L < 80)).astype(np.uint8)
     dr = cv2.distanceTransform(1 - rock, cv2.DIST_L2, 3)
-    fill = fill * (1 - 0.22 * np.exp(-dr / 4))[..., None]                 # a little contact shadow at rock
+    fill = paint_ground(fill, mask, dr, seed, tracks, rings)
     out = comp(im, fill.clip(0, 255).astype(np.uint8), cv2.GaussianBlur(mask.astype(np.float32), (0, 0), 1.5)[..., None])
     for (px, py, prx) in puddles:                                        # puddles, like the painting's: dark, a light rim
         pl = np.zeros((H, W), np.float32)
@@ -143,7 +234,7 @@ def dirt(im, mask, seed, band=26, puddles=(), settle=10, pct=65):
         rim = np.zeros((H, W), np.float32)
         cv2.ellipse(rim, (px - 2, py - 1), (prx - 3, round(prx * .45) - 2), 0, 200, 330, 1, 1, cv2.LINE_AA)
         out = comp(out, np.broadcast_to(np.float32([190, 180, 168]), out.shape), rim[..., None] * 0.6)
-    return stones(out, mask, 0.0003, seed)
+    return out
 
 
 hm = np.zeros((H, W), np.uint8); cv2.fillPoly(hm, [z(HQ_POLY)], 1)
@@ -187,9 +278,12 @@ img = quilt(img, nm | cm, CLIFF)
 # ---- 2. the big pads -> plateau dirt (one at a time, each takes its own clearing's colour) ----
 for k, (x, y) in enumerate(BIG_PADS):
     m = np.zeros((H, W), np.uint8); cv2.ellipse(m, (x, y), (100, 52), 0, 0, 360, 1, -1)
-    img = dirt(img, m, 10 + k)
+    img = dirt(img, m, 10 + k, rings=[(px, py, PAD_RX, PAD_RY) for px, py in PADS if m[py, px]])
 # ---- 3. the old HQ -> plaza ----
-img = dirt(img, hm, 20, band=40, settle=40, pct=50, puddles=[(700, 812, 16), (1080, 700, 12), (640, 720, 10)])
+img = dirt(img, hm, 20, band=40, settle=40, pct=50, puddles=[(700, 812, 16), (1080, 700, 12), (640, 720, 10)],
+           tracks=[[(600, 690), (680, 740), (760, 770), (830, 778)], [(1160, 640), (1090, 700), (1000, 760), (944, 772)],
+                   [(700, 900), (760, 840), (820, 800)]],
+           rings=[(px, py, PAD_RX, PAD_RY) for px, py in PADS if hm[py, px]])
 
 # ---- 4. the road on through the plaza: the painted road above, copied down in overlapping slices ----
 rx0, rx1 = ROAD_X
