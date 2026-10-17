@@ -11,7 +11,9 @@ map, and in portrait you drag to look around). It is a Kingdom Rush-style tower 
   - **Dragon:** a punk scrap-metal dragon that lobs napalm. Each glob leaves a fire patch on the road that burns
     every ground enemy walking through it (18/26/36 a second for 4/5/6 s, through armour). Patches don't stack, each
     dragon keeps at most 3, and drones and your own troopers are never hurt.
-- **5 enemies**: scav, rider (fast), brute (armoured), drone (flying, can't be blocked), and the Warlord boss in wave 10.
+- **5 enemies**: the raider, the scout (a fast robot dog), the enforcer (armoured), the drone (flying, can't be
+  blocked), and the mech boss in wave 10. The raider, scout, enforcer and mech are cut straight from the enemy concept
+  sheet (`../art/enemies/`), so they look exactly like it.
 - **2 spells**: Airstrike (3 missiles) and Drop Squad (2 mercs who block for 18 s).
 - **Waves**: 10 waves from two gates. Tapping the skull calls a wave early for bonus scrap. Selling refunds 60%.
 - **Stars**: 18+ lives left is 3 stars, 6+ is 2 stars.

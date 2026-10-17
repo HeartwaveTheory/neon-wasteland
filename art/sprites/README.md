@@ -1,5 +1,8 @@
 # Enemy sprites from video
 
+**Replaced (Oct 17, 2026):** the game's raider, scout and mech now come from the enemy concept sheet (`../enemies/`).
+These sheets are kept for reference.
+
 The game's **raider**, **scout** and **mech** are cut from short animated clips of the Forge's enemy concepts. The
 enforcer and drone still use the drawn-in-code art from `units/` until they get clips of their own.
 

@@ -243,10 +243,12 @@ const NAPALM = { flight: 0.6, maxPatches: 3, after: 1, afterK: 0.5 };
 
 // ---------------------------------------------------------------- enemies
 // Map v3 (4 pads): the boss has 2800 HP (was 3400) so a good mixed build can sometimes stop it (sim.mjs).
+// h: height on the map (px); sh: the sprite's height in its 160-unit frame (scout, raider, enforcer and mech are cut from
+// the enemy concept sheet by ../art/enemies/cut.py, which prints their sh).
 const ENEMIES = {
-  raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 140, shadow: 7 },
+  raider:   { name: 'Raider',   hp: 60,   speed: 40, armor: 0,   bounty: 6,   lives: 1,  dmg: 5,  atk: 1.0, h: 29, sh: 119, shadow: 7 },
   scout:    { name: 'Scout',    hp: 48,   speed: 78, armor: 0,   bounty: 7,   lives: 1,  dmg: 4,  atk: 0.9, h: 23, sh: 112, shadow: 11 },
-  enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 140, shadow: 11 },
+  enforcer: { name: 'Enforcer', hp: 340,  speed: 25, armor: 0.5, bounty: 22,  lives: 2,  dmg: 14, atk: 1.2, h: 33, sh: 114, shadow: 11 },
   drone:    { name: 'Drone',    hp: 70,   speed: 52, armor: 0,   bounty: 9,   lives: 1,  air: true, h: 17, sh: 70, shadow: 8 },
   mech:     { name: 'Mech',     hp: 2800, speed: 17, armor: 0.4, bounty: 220, lives: 10, dmg: 40, atk: 1.6, h: 50, sh: 140, shadow: 20, boss: true },
 };
